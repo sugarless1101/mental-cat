@@ -4,8 +4,9 @@
   <meta charset="UTF-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
   <script src="https://cdn.tailwindcss.com"></script>
-  <title>Calm Cat Portal</title>
+  <title>Mental Cat Portal</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 
   <!-- Tailwindカスタムテーマ：モノトーン＋アクセントカラー -->
@@ -46,6 +47,14 @@
         #mood-panel.small .cat-caption{
             display:none;
         }
+        /* 常にクリック可能にしておく */
+        #mood-panel{ z-index: 60; pointer-events: auto; }
+        #mood-panel button{ cursor: pointer; padding: .4rem .6rem; border-radius: .5rem; pointer-events: auto; }
+
+        /* 縮小時でもタッチしやすいようヒット領域を広げる */
+        #mood-panel.small ul li button{ padding: .5rem .75rem; }
+        /* タスクや他要素に覆われる場合に備え、常に上に出す */
+        .task_list{ z-index: 10; }
     </style>
 
 </head>
@@ -53,7 +62,7 @@
 <body class="bg-dark text-graylight min-h-screen flex flex-col justify-between font-sans">
   <!-- header -->
   <header class="flex justify-between items-center p-4 bg-white/5 border-b border-white/10">
-    <p class="text-xl tracking-wide">Calm Cat</p>
+    <p class="text-xl tracking-wide">Mental Cat</p>
     <button class="text-graylight hover:text-accent transition" aria-label="menu">
       <i class="fa-solid fa-bars"></i>
     </button>
@@ -159,6 +168,24 @@
 
   let currentMood = null;
 
+  // セッション設定
+  const SESSION_KEY = 'cc_session_start';
+  const GREET_KEY = 'cc_session_greeted';
+  const SESSION_TTL = 1000 * 60 * 60; // 1時間
+
+  function isSessionExpired() {
+    const s = parseInt(localStorage.getItem(SESSION_KEY) || '0', 10);
+    if (!s) return true;
+    return (Date.now() - s) > SESSION_TTL;
+  }
+
+  function startNewSession() {
+    const id = Date.now();
+    localStorage.setItem(SESSION_KEY, String(id));
+    localStorage.removeItem(GREET_KEY);
+    return id;
+  }
+
   // 吹き出し
   function addBubble(text, side = 'left') {
     const wrap = document.createElement('div');
@@ -198,24 +225,33 @@
     currentMood = mood;
     localStorage.setItem('cc_mood', mood);
 
+    // セッションが無ければ開始（1時間単位）
+    if (isSessionExpired()) startNewSession();
+
     // ボタンを左側に小さく配置
     const panel = document.getElementById('mood-panel');
     panel.classList.add('small');
-
-    // 猫が気分に応じて自発発言
+    // ボタン押下時は毎回挨拶を送る（小さくなった後でも反応させたい）
+    console.log('setMood -> calling startCatGreeting', mood);
     startCatGreeting(mood);
-    }
+  }
 
   // 初回あいさつ（自発話しかけ）
   async function startCatGreeting(mood) {
+    console.log('startCatGreeting invoked, mood=', mood);
     sendBtn.disabled = true;
     sendBtn.classList.add('opacity-60', 'cursor-not-allowed');
     showTyping();
 
     try {
+      const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
       const res = await fetch(API_CHAT, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json', 
+          'Accept': 'application/json',
+          'X-CSRF-TOKEN': csrfToken
+        },
         body: JSON.stringify({ message: "__start__", mood })
       });
 
@@ -225,38 +261,64 @@
       hideTyping();
 
       if (res.ok && data && typeof data.reply === 'string') {
+        console.log('startCatGreeting: reply received', data.reply);
         addBubble(data.reply, 'left');
       } else {
         addBubble('…最初の挨拶がうまく出せなかったにゃ。', 'left');
-        console.error('HTTP', res.status, 'Body:', raw);
+        console.error('startCatGreeting HTTP', res.status, 'Body:', raw);
       }
     } catch (err) {
       hideTyping();
       addBubble('…接続が不安定みたいにゃ。', 'left');
-      console.error(err);
+      console.error('startCatGreeting error', err);
     } finally {
       sendBtn.disabled = false;
       sendBtn.classList.remove('opacity-60', 'cursor-not-allowed');
     }
   }
 
-  // ページ読み込み時：前回の気分があれば反映
+  // ページ読み込み時：セッション管理(1時間)と前回の気分反映
   (function initMoodFromStorage() {
   const saved = localStorage.getItem('cc_mood');
-  if (saved) {
-    currentMood = saved;
-    // 中央パネルを非表示にせず、小さく左に寄せるだけ
-    moodPanel.classList.add('small');
+  const sessionExpired = isSessionExpired();
+
+  if (sessionExpired) {
+    // 新しいセッションの開始 => 大きな中央パネルを見せる
+    startNewSession();
+    moodPanel.classList.remove('small');
+    if (saved) currentMood = saved; // 保存はそのまま残すが見た目は大きくする
+  } else {
+    // セッション継続中
+    if (saved) {
+      currentMood = saved;
+      moodPanel.classList.add('small');
+    } else {
+      // 気分未選択なら大きなパネルで選ばせる
+      moodPanel.classList.remove('small');
+    }
   }
 })();
 
   // 気分ボタンにリスナを付与
-  document.querySelectorAll('[data-mood]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const mood = btn.getAttribute('data-mood'); // "bad" | "neutral" | "good"
-      setMood(mood);
+  try {
+    const moodButtons = document.querySelectorAll('[data-mood]');
+    if (!moodButtons || moodButtons.length === 0) console.warn('No mood buttons found');
+    moodButtons.forEach(btn => {
+      btn.addEventListener('click', (ev) => {
+        const mood = btn.getAttribute('data-mood'); // "bad" | "neutral" | "good"
+        console.log('mood button clicked', mood, ev);
+        setMood(mood);
+      });
+      // touch fallback
+      btn.addEventListener('touchstart', (ev) => {
+        const mood = btn.getAttribute('data-mood');
+        console.log('mood button touchstart', mood);
+        setMood(mood);
+      }, { passive: true });
     });
-  });
+  } catch (err) {
+    console.error('Failed to attach mood button listeners', err);
+  }
 
   // 送信（通常の会話）
   form.addEventListener('submit', async (e) => {
@@ -273,9 +335,14 @@
     showTyping();
 
     try {
+      const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
       const res = await fetch(API_CHAT, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json', 
+          'Accept': 'application/json',
+          'X-CSRF-TOKEN': csrfToken
+        },
         body: JSON.stringify({ message: text, mood: currentMood })   // ← 気分も送る
       });
 
