@@ -8,51 +8,30 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <title>Mental Cat Portal</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-
   <script>
     tailwind.config = {
       theme: {
         extend: {
-          colors: {
-            dark: '#0A0A0A',
-            graylight: '#D1D5DB',
-            accent: '#B6A7F2',
-          },
-          fontFamily: {
-            sans: ['"Noto Sans JP"', 'sans-serif'],
-          },
+          colors: { dark: '#0A0A0A', graylight: '#D1D5DB', accent: '#B6A7F2' },
+          fontFamily: { sans: ['"Noto Sans JP"', 'sans-serif'] },
         },
       },
     };
   </script>
   <style>
-    #mood-panel.small {
-      position: absolute;
-      left: 2rem;
-      top: 6rem;
-      transform: scale(0.75);
-      transform-origin: left top;
-      transition: all .4s ease;
-      z-index: 10;
-    }
-    #mood-panel.small ul {
-      flex-direction: row;
-      gap: .75rem;
-    }
-    #mood-panel.small .cat-caption { display: none; }
-    #mood-panel { z-index: 60; pointer-events: auto; }
-    #mood-panel button { cursor: pointer; padding: .4rem .6rem; border-radius: .5rem; pointer-events: auto; }
-    #mood-panel.small ul li button { padding: .5rem .75rem; }
-    .task_list { z-index: 10; }
+    #mood-panel.small { position:absolute; left:2rem; top:6rem; transform:scale(0.75); transform-origin:left top; transition:all .4s ease; z-index:10; }
+    #mood-panel.small ul { flex-direction:row; gap:.75rem; }
+    #mood-panel.small .cat-caption { display:none; }
+    #mood-panel { z-index:60; pointer-events:auto; }
+    #mood-panel button { cursor:pointer; padding:.4rem .6rem; border-radius:.5rem; pointer-events:auto; }
+    #mood-panel.small ul li button { padding:.5rem .75rem; }
+    .task_list { z-index:10; }
   </style>
 </head>
-
 <body class="bg-dark text-graylight min-h-screen flex flex-col justify-between font-sans">
   <header class="flex justify-between items-center p-4 bg-white/5 border-b border-white/10">
     <p class="text-xl tracking-wide">Mental Cat</p>
-    <button class="text-graylight hover:text-accent transition" aria-label="menu">
-      <i class="fa-solid fa-bars"></i>
-    </button>
+    <button class="text-graylight hover:text-accent transition" aria-label="menu"><i class="fa-solid fa-bars"></i></button>
   </header>
 
   <main class="flex flex-1 justify-center items-center relative p-4">
@@ -72,32 +51,15 @@
         <li><button data-mood="neutral" class="hover:scale-110 transition" aria-label="neutral">🙂</button></li>
         <li><button data-mood="good" class="hover:scale-110 transition" aria-label="good">😊</button></li>
       </ul>
-      <div class="mt-12 text-center">
-        <p class="cat-caption text-gray-400 text-lg italic animate-pulse">
-          きょうの気分に合わせて、猫が提案するよ。
-        </p>
-      </div>
+      <div class="mt-12 text-center"><p class="cat-caption text-gray-400 text-lg italic animate-pulse">きょうの気分に合わせて、猫が提案するよ。</p></div>
     </div>
 
     <div class="recommend_list absolute right-8 top-1/2 -translate-y-1/2 w-1/4 text-center bg-white/5 rounded-xl p-4 shadow-md border border-white/10">
       <ul class="space-y-4">
         <li>
-          <iframe
-            class="rounded-lg shadow-sm"
-            width="100%" height="200"
-            src="https://www.youtube.com/embed/nJktCw68UDo?si=FxJvdYa9KU6KePID"
-            title="YouTube video player" frameborder="0"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-            referrerpolicy="strict-origin-when-cross-origin" allowfullscreen>
-          </iframe>
-        </li>
-        <li class="flex justify-center space-x-6 text-xl">
-          <a href="https://x.com" target="_blank" aria-label="X (Twitter)" class="hover:text-accent transition">
-            <i class="fa-brands fa-x-twitter"></i>
-          </a>
-          <a href="https://www.instagram.com" target="_blank" aria-label="Instagram" class="hover:text-accent transition">
-            <i class="fa-brands fa-instagram"></i>
-          </a>
+          <iframe class="rounded-lg shadow-sm" width="100%" height="200" src="https://www.youtube.com/embed/nJktCw68UDo?si=FxJvdYa9KU6KePID"
+            title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
         </li>
       </ul>
     </div>
@@ -105,197 +67,259 @@
 
   <div class="chat fixed bottom-4 left-1/2 -translate-x-1/2 w-3/4 max-w-2xl bg-white/5 rounded-xl p-3 border border-white/10 backdrop-blur-md">
     <div id="chat-box" class="h-56 overflow-y-auto mb-3 space-y-2 pr-1"></div>
-
     <form id="chat-form" class="flex items-center gap-3">
-      <input
-        id="message"
-        type="text"
-        placeholder="猫に話しかけてみて"
-        class="flex-1 bg-transparent border-b border-gray-600 text-gray-200 focus:outline-none focus:border-accent p-2 placeholder-gray-500">
-      <button
-        id="send-btn"
-        type="submit"
-        class="bg-accent text-dark rounded-full w-10 h-10 flex items-center justify-center hover:bg-graylight transition"
-        aria-label="send">
-        ▶
-      </button>
+      <input id="message" type="text" placeholder="猫に話しかけてみて" class="flex-1 bg-transparent border-b border-gray-600 text-gray-200 focus:outline-none focus:border-accent p-2 placeholder-gray-500">
+      <button id="send-btn" type="submit" class="bg-accent text-dark rounded-full w-10 h-10 flex items-center justify-center hover:bg-graylight transition" aria-label="send">▶</button>
     </form>
   </div>
 
-  <script>
-  const API_CHAT = "{{ url('/api/chat') }}";
-  const chatBox = document.getElementById('chat-box');
-  const form = document.getElementById('chat-form');
-  const input = document.getElementById('message');
-  const sendBtn = document.getElementById('send-btn');
-  const moodPanel = document.getElementById('mood-panel');
-  const taskItems = document.getElementById('task-items');
-  let currentMood = null;
+<script>
+const API_CHAT = "{{ url('/api/chat') }}";
+const API_TASK_BASE = "{{ url('/app/tasks') }}";
+const IS_AUTH = Boolean(window.IS_AUTHENTICATED);
 
-  function addBubble(text, side = 'left') {
-    const wrap = document.createElement('div');
-    wrap.className = side === 'right' ? 'text-right' : 'text-left';
-    const bubble = document.createElement('span');
-    bubble.className = 'inline-block max-w-[85%] px-3 py-2 rounded-lg whitespace-pre-line ' +
-      (side === 'right' ? 'bg-white/20 border border-white/20' : 'bg-black/30 border border-white/10');
-    bubble.textContent = text;
-    wrap.appendChild(bubble);
-    chatBox.appendChild(wrap);
-    chatBox.scrollTop = chatBox.scrollHeight;
+const chatBox = document.getElementById('chat-box');
+const form = document.getElementById('chat-form');
+const input = document.getElementById('message');
+const sendBtn = document.getElementById('send-btn');
+const moodPanel = document.getElementById('mood-panel');
+const taskItems = document.getElementById('task-items');
+
+let currentMood = null;
+let taskState = [];
+let pendingTaskConfirm = null;
+
+function addBubble(text, side = 'left') {
+  const wrap = document.createElement('div');
+  wrap.className = side === 'right' ? 'text-right' : 'text-left';
+  const bubble = document.createElement('span');
+  bubble.className = 'inline-block max-w-[85%] px-3 py-2 rounded-lg whitespace-pre-line ' + (side === 'right' ? 'bg-white/20 border border-white/20' : 'bg-black/30 border border-white/10');
+  bubble.textContent = text;
+  wrap.appendChild(bubble);
+  chatBox.appendChild(wrap);
+  chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+let typingEl = null;
+function showTyping() {
+  typingEl = document.createElement('div');
+  typingEl.className = 'text-left';
+  typingEl.innerHTML = '<span class="inline-block px-3 py-2 rounded-lg bg-black/30 border border-white/10"><span class="inline-block w-2 h-2 bg-gray-400 rounded-full animate-pulse"></span><span class="inline-block w-2 h-2 bg-gray-500 rounded-full animate-pulse ml-1"></span><span class="inline-block w-2 h-2 bg-gray-600 rounded-full animate-pulse ml-1"></span></span>';
+  chatBox.appendChild(typingEl);
+  chatBox.scrollTop = chatBox.scrollHeight;
+}
+function hideTyping() {
+  if (typingEl?.parentNode) typingEl.parentNode.removeChild(typingEl);
+  typingEl = null;
+}
+
+function sanitizeTaskTitle(value) {
+  if (typeof value !== 'string') return '';
+  return value.replace(/\s+/g, ' ').trim();
+}
+function normalizeForMatch(value) {
+  return sanitizeTaskTitle(value).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
+}
+function taskStem(value) {
+  return normalizeForMatch(value).replace(/(を)?(する|します|した|したよ|したよね|できた|完了|る|た|だ|んだ|んだよ)$/u, '');
+}
+function diceCoefficient(a, b) {
+  if (!a || !b) return 0;
+  if (a === b) return 1;
+  if (a.length < 2 || b.length < 2) return 0;
+  const grams = new Map();
+  for (let i = 0; i < a.length - 1; i += 1) {
+    const g = a.slice(i, i + 2);
+    grams.set(g, (grams.get(g) || 0) + 1);
   }
-
-  let typingEl = null;
-  function showTyping() {
-    typingEl = document.createElement('div');
-    typingEl.className = 'text-left';
-    typingEl.innerHTML = `
-      <span class="inline-block px-3 py-2 rounded-lg bg-black/30 border border-white/10">
-        <span class="inline-block w-2 h-2 bg-gray-400 rounded-full animate-pulse"></span>
-        <span class="inline-block w-2 h-2 bg-gray-500 rounded-full animate-pulse ml-1"></span>
-        <span class="inline-block w-2 h-2 bg-gray-600 rounded-full animate-pulse ml-1"></span>
-      </span>`;
-    chatBox.appendChild(typingEl);
-    chatBox.scrollTop = chatBox.scrollHeight;
+  let overlap = 0;
+  for (let i = 0; i < b.length - 1; i += 1) {
+    const g = b.slice(i, i + 2);
+    const count = grams.get(g) || 0;
+    if (count > 0) {
+      grams.set(g, count - 1);
+      overlap += 1;
+    }
   }
-  function hideTyping() {
-    if (typingEl && typingEl.parentNode) typingEl.parentNode.removeChild(typingEl);
-    typingEl = null;
+  return (2 * overlap) / ((a.length - 1) + (b.length - 1));
+}
+
+function parseTaskState(payload) {
+  return (payload?.tasks?.todo ?? []).slice(0, 10).map((task) => ({
+    id: task?.id ?? null,
+    title: sanitizeTaskTitle(task?.title),
+    status: task?.status === 'done' ? 'done' : 'todo',
+  })).filter((task) => task.title);
+}
+function renderTaskPanel() {
+  if (!taskState.length) {
+    taskItems.innerHTML = '<li class="flex justify-between items-center"><span>気分を選ぶとおすすめタスクが表示されます</span><input type="checkbox" disabled class="w-4 h-4 accent-accent bg-transparent border border-gray-500 rounded opacity-60"></li>';
+    return;
   }
+  taskItems.innerHTML = '';
+  taskState.forEach((task) => {
+    const li = document.createElement('li');
+    li.className = 'flex justify-between items-center';
+    const span = document.createElement('span');
+    span.textContent = task.title;
+    if (task.status === 'done') span.classList.add('line-through', 'opacity-70');
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.className = 'w-4 h-4 accent-accent bg-transparent border border-gray-500 rounded';
+    checkbox.checked = task.status === 'done';
+    checkbox.disabled = true;
+    li.appendChild(span);
+    li.appendChild(checkbox);
+    taskItems.appendChild(li);
+  });
+}
 
-  function sanitizeTaskTitle(value) {
-    if (typeof value !== 'string') return '';
-    return value.replace(/\s+/g, ' ').trim();
+function mergeTaskStateFromPayload(payload, showRecommendation) {
+  const incoming = parseTaskState(payload);
+  if (!incoming.length) return;
+  const done = taskState.filter((t) => t.status === 'done');
+  const merged = incoming.map((task) => {
+    const hit = done.find((d) => (d.id && task.id && String(d.id) === String(task.id)) || d.title === task.title);
+    return hit ? { ...task, status: 'done' } : task;
+  });
+  done.forEach((d) => {
+    if (!merged.find((t) => (d.id && t.id && String(d.id) === String(t.id)) || t.title === d.title)) merged.push(d);
+  });
+  taskState = merged;
+  renderTaskPanel();
+  if (showRecommendation) {
+    const lines = incoming.slice(0, 3).map((t, i) => `${i + 1}. ${t.title}`);
+    if (lines.length) addBubble(`今日のおすすめタスクだよ\n${lines.join('\n')}`, 'left');
   }
+}
 
-  function pickTopTodoTasks(data) {
-    const todo = (data && data.tasks && Array.isArray(data.tasks.todo)) ? data.tasks.todo : [];
-    return todo.map(t => sanitizeTaskTitle(t && t.title)).filter(Boolean).slice(0, 3);
+function containsCompletionIntent(text) {
+  return /(終わった|終えた|完了|できた|やった|済んだ|達成|したよ|した|しました|してきた|してきました|たよ|ました|done|finished)/i.test(text);
+}
+function findCompletionCandidate(text) {
+  if (!containsCompletionIntent(text)) return null;
+  const msg = normalizeForMatch(text);
+  let best = null;
+  taskState.filter((t) => t.status !== 'done').forEach((task) => {
+    const full = normalizeForMatch(task.title);
+    const stem = taskStem(task.title);
+    let score = 0;
+    if (full && msg.includes(full)) score += 10;
+    if (stem && stem.length >= 4 && msg.includes(stem)) score += 8;
+    score += diceCoefficient(msg, full) * 6;
+    score += diceCoefficient(msg, stem) * 4;
+    if (score > 0 && (!best || score > best.score)) best = { ...task, score };
+  });
+  if (!best || best.score < 4.5) return null;
+  return best;
+}
+function isAffirmative(text) {
+  return /^(はい|うん|yes|ok|了解|お願い|そう)/i.test(text.trim());
+}
+function isNegative(text) {
+  return /^(いいえ|いや|no|違う|まだ|キャンセル)/i.test(text.trim());
+}
+
+async function persistTaskDone(task) {
+  if (!task?.id || !IS_AUTH) return true;
+  const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+  try {
+    const res = await fetch(`${API_TASK_BASE}/${task.id}/complete`, { method: 'POST', headers: { 'X-CSRF-TOKEN': token, 'Accept': 'application/json' } });
+    const json = await res.json();
+    return Boolean(json.ok);
+  } catch {
+    return false;
   }
-
-  function renderTaskPanel(taskTitles) {
-    if (!taskTitles.length) return;
-    taskItems.innerHTML = '';
-    taskTitles.forEach((title) => {
-      const li = document.createElement('li');
-      li.className = 'flex justify-between items-center';
-
-      const span = document.createElement('span');
-      span.textContent = title;
-
-      const checkbox = document.createElement('input');
-      checkbox.type = 'checkbox';
-      checkbox.className = 'w-4 h-4 accent-accent bg-transparent border border-gray-500 rounded';
-
-      li.appendChild(span);
-      li.appendChild(checkbox);
-      taskItems.appendChild(li);
+}
+async function handlePendingTaskConfirmation(text) {
+  if (!pendingTaskConfirm) return false;
+  const target = pendingTaskConfirm;
+  if (isAffirmative(text)) {
+    taskState = taskState.map((task) => {
+      const sameId = target.id && task.id && String(target.id) === String(task.id);
+      const sameTitle = task.title === target.title;
+      return (sameId || sameTitle) ? { ...task, status: 'done' } : task;
     });
+    renderTaskPanel();
+    await persistTaskDone(target);
+    addBubble(`いいね、達成できたにゃ。「${target.title}」すごいにゃ。`, 'left');
+    pendingTaskConfirm = null;
+    return true;
   }
-
-  function renderTaskRecommendationBubble(taskTitles) {
-    if (!taskTitles.length) return;
-    const lines = taskTitles.map((title, index) => `${index + 1}. ${title}`);
-    addBubble(`今日のおすすめタスクだよ\n${lines.join('\n')}`, 'left');
+  if (isNegative(text)) {
+    addBubble('了解にゃ。今回は未完了のままにしておくにゃ。', 'left');
+    pendingTaskConfirm = null;
+    return true;
   }
+  addBubble(`「${target.title}」を達成したにゃんね？（はい/いいえ）`, 'left');
+  return true;
+}
 
-  function applyTaskSuggestionFromPayload(data, showRecommendation) {
-    const topTasks = pickTopTodoTasks(data);
-    if (!topTasks.length) return;
-    renderTaskPanel(topTasks);
-    if (showRecommendation) renderTaskRecommendationBubble(topTasks);
+async function sendChat(message, mood, showRecommendation = false) {
+  sendBtn.disabled = true;
+  sendBtn.classList.add('opacity-60', 'cursor-not-allowed');
+  showTyping();
+  try {
+    const res = await fetch(API_CHAT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({ message, mood }),
+    });
+    const raw = await res.text();
+    let data = null;
+    try { data = JSON.parse(raw); } catch {}
+    hideTyping();
+    if (res.ok && data && typeof data.reply === 'string') {
+      addBubble(data.reply, 'left');
+      if (showRecommendation) mergeTaskStateFromPayload(data, true);
+    } else {
+      addBubble('サーバーから正しい返事が来なかったにゃ。', 'left');
+    }
+  } catch {
+    hideTyping();
+    addBubble('接続が不安定みたいにゃ。', 'left');
+  } finally {
+    sendBtn.disabled = false;
+    sendBtn.classList.remove('opacity-60', 'cursor-not-allowed');
   }
+}
 
-  function setMood(mood) {
-    currentMood = mood;
-    localStorage.setItem('cc_mood', mood);
+function setMood(mood) {
+  currentMood = mood;
+  localStorage.setItem('cc_mood', mood);
+  moodPanel.classList.add('small');
+  sendChat('__start__', mood, true);
+}
+
+(function init() {
+  const saved = localStorage.getItem('cc_mood');
+  if (saved) {
+    currentMood = saved;
     moodPanel.classList.add('small');
-    startCatGreeting(mood);
+  }
+  renderTaskPanel();
+  document.querySelectorAll('[data-mood]').forEach((btn) => btn.addEventListener('click', () => setMood(btn.getAttribute('data-mood'))));
+})();
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const text = input.value.trim();
+  if (!text) return;
+  addBubble(text, 'right');
+  input.value = '';
+  input.focus();
+
+  if (await handlePendingTaskConfirmation(text)) return;
+
+  const candidate = findCompletionCandidate(text);
+  if (candidate) {
+    pendingTaskConfirm = candidate;
+    addBubble(`「${candidate.title}」を達成したにゃんね？（はい/いいえ）`, 'left');
+    return;
   }
 
-  async function startCatGreeting(mood) {
-    sendBtn.disabled = true;
-    sendBtn.classList.add('opacity-60', 'cursor-not-allowed');
-    showTyping();
-
-    try {
-      const res = await fetch(API_CHAT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-        body: JSON.stringify({ message: "__start__", mood })
-      });
-
-      const raw = await res.text();
-      let data = null; try { data = JSON.parse(raw); } catch {}
-
-      hideTyping();
-      if (res.ok && data && typeof data.reply === 'string') {
-        addBubble(data.reply, 'left');
-        applyTaskSuggestionFromPayload(data, true);
-      } else {
-        addBubble('最初の挨拶がうまく出せなかったにゃ。', 'left');
-      }
-    } catch (err) {
-      hideTyping();
-      addBubble('接続が不安定みたいにゃ。', 'left');
-    } finally {
-      sendBtn.disabled = false;
-      sendBtn.classList.remove('opacity-60', 'cursor-not-allowed');
-    }
-  }
-
-  (function initMoodFromStorage() {
-    const saved = localStorage.getItem('cc_mood');
-    if (saved) {
-      currentMood = saved;
-      moodPanel.classList.add('small');
-    }
-  })();
-
-  document.querySelectorAll('[data-mood]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const mood = btn.getAttribute('data-mood');
-      setMood(mood);
-    });
-  });
-
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const text = input.value.trim();
-    if (!text) return;
-
-    addBubble(text, 'right');
-    input.value = '';
-    input.focus();
-
-    sendBtn.disabled = true;
-    sendBtn.classList.add('opacity-60', 'cursor-not-allowed');
-    showTyping();
-
-    try {
-      const res = await fetch(API_CHAT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-        body: JSON.stringify({ message: text, mood: currentMood })
-      });
-
-      const raw = await res.text();
-      let data = null; try { data = JSON.parse(raw); } catch {}
-
-      hideTyping();
-      if (res.ok && data && typeof data.reply === 'string') {
-        addBubble(data.reply, 'left');
-        applyTaskSuggestionFromPayload(data, false);
-      } else {
-        addBubble('サーバーから正しい返事が来なかったにゃ。', 'left');
-      }
-    } catch (err) {
-      hideTyping();
-      addBubble('接続が不安定みたいにゃ。', 'left');
-    } finally {
-      sendBtn.disabled = false;
-      sendBtn.classList.remove('opacity-60', 'cursor-not-allowed');
-    }
-  });
-  </script>
+  await sendChat(text, currentMood, false);
+});
+</script>
 </body>
 </html>

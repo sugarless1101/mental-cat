@@ -23,9 +23,6 @@ class ChatController extends Controller
         $this->aiService = new MentalCatAiService();
     }
 
-    /**
-     * Store a newly created message and get AI response.
-     */
     public function store(ChatStoreRequest $request): JsonResponse
     {
         $user = $request->user();
@@ -51,27 +48,15 @@ class ChatController extends Controller
                     $mood
                 );
 
-                $allowTaskCompletion = $this->shouldAllowTaskCompletion($message);
-                $aiResponse = $this->aiService->makeResponse($aiMessage, $contextText, $allowTaskCompletion);
+                // Task completion is handled by explicit UI confirmation flow.
+                $aiResponse = $this->aiService->makeResponse($aiMessage, $contextText, false);
 
                 if (!$aiResponse['ok']) {
                     Log::warning('AI response failed', ['error' => $aiResponse['error']]);
-
-                    return response()->json([
-                        'ok' => false,
-                        'reply' => MentalCatAiService::getFallbackReply(),
-                        'mood_guess' => null,
-                        'bgm_key' => null,
-                        'tasks' => [
-                            'todo' => [],
-                            'done_recent' => [],
-                        ],
-                        'messages' => [],
-                    ], 200);
+                    return response()->json($this->fallbackPayload(), 200);
                 }
 
                 $json = $aiResponse['json'] ?? [];
-
                 $assistantMsg = ChatMessage::create([
                     'user_id' => $user->id,
                     'role' => 'assistant',
@@ -80,49 +65,23 @@ class ChatController extends Controller
                     'memory_summary' => $json['memory_summary'] ?? null,
                 ]);
 
-                $taskTitlesToAdd = $this->buildTaskTitlesToAdd($json, $mood, $message === '__start__');
-                foreach ($taskTitlesToAdd as $title) {
-                    Task::create([
-                        'user_id' => $user->id,
-                        'title' => $title,
-                        'status' => 'todo',
-                        'source' => 'ai',
-                        'chat_message_id' => $assistantMsg->id,
-                    ]);
-                }
-
-                $tasksToComplete = $json['tasks_to_complete'] ?? [];
-                if ($allowTaskCompletion && !empty($tasksToComplete)) {
-                    $todoTask = $user->tasks()
-                        ->where('status', 'todo')
-                        ->latest('created_at')
-                        ->first();
-
-                    if ($todoTask) {
-                        $todoTask->update([
-                            'status' => 'done',
-                            'done_at' => now(),
+                if ($message === '__start__') {
+                    $taskTitlesToAdd = $this->buildTaskTitlesToAdd($json, $mood, true);
+                    foreach ($taskTitlesToAdd as $title) {
+                        Task::create([
+                            'user_id' => $user->id,
+                            'title' => $title,
+                            'status' => 'todo',
+                            'source' => 'ai',
+                            'chat_message_id' => $assistantMsg->id,
                         ]);
                     }
                 }
 
-                $latestTasks = $user->tasks()
-                    ->latest('created_at')
-                    ->limit(10)
-                    ->get();
-
-                $latestMessages = $user->chatMessages()
-                    ->latest('created_at')
-                    ->limit(10)
-                    ->get()
-                    ->reverse();
-
+                $latestTasks = $user->tasks()->latest('created_at')->limit(10)->get();
+                $latestMessages = $user->chatMessages()->latest('created_at')->limit(10)->get()->reverse();
                 $todo = $latestTasks->where('status', 'todo')->values();
-                $doneRecent = $user->tasks()
-                    ->where('status', 'done')
-                    ->latest('done_at')
-                    ->limit(10)
-                    ->get();
+                $doneRecent = $user->tasks()->where('status', 'done')->latest('done_at')->limit(10)->get();
 
                 return response()->json([
                     'ok' => true,
@@ -134,66 +93,37 @@ class ChatController extends Controller
                             'id' => $t->id,
                             'title' => $t->title,
                             'status' => $t->status,
-                        ]),
+                        ])->values(),
                         'done_recent' => $doneRecent->map(fn($t) => [
                             'id' => $t->id,
                             'title' => $t->title,
                             'status' => $t->status,
-                        ]),
+                        ])->values(),
                     ],
                     'messages' => $latestMessages->map(fn($m) => [
                         'id' => $m->id,
                         'role' => $m->role,
                         'content' => $m->content,
-                    ]),
+                    ])->values(),
                 ], 200);
             });
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::error('ChatController@store error', [
                 'message' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
-
-            return response()->json([
-                'ok' => false,
-                'reply' => MentalCatAiService::getFallbackReply(),
-                'mood_guess' => null,
-                'bgm_key' => null,
-                'tasks' => [
-                    'todo' => [],
-                    'done_recent' => [],
-                ],
-                'messages' => [],
-            ], 200);
+            return response()->json($this->fallbackPayload(), 200);
         }
     }
 
-    /**
-     * Handle guest request (no user context)
-     */
     private function handleGuestRequest(string $message, ?string $mood): JsonResponse
     {
         try {
-            $simpleContext = $this->appendMoodContext(
-                "ユーザーメッセージ: {$message}",
-                $mood
-            );
-            $allowTaskCompletion = $this->shouldAllowTaskCompletion($message);
-
-            $aiResponse = $this->aiService->makeResponse($message, $simpleContext, $allowTaskCompletion);
+            $simpleContext = $this->appendMoodContext("ユーザーメッセージ: {$message}", $mood);
+            $aiResponse = $this->aiService->makeResponse($message, $simpleContext, false);
 
             if (!$aiResponse['ok']) {
-                return response()->json([
-                    'ok' => false,
-                    'reply' => MentalCatAiService::getFallbackReply(),
-                    'mood_guess' => null,
-                    'bgm_key' => null,
-                    'tasks' => [
-                        'todo' => [],
-                        'done_recent' => [],
-                    ],
-                    'messages' => [],
-                ], 200);
+                return response()->json($this->fallbackPayload(), 200);
             }
 
             $json = $aiResponse['json'] ?? [];
@@ -209,35 +139,30 @@ class ChatController extends Controller
                         'id' => null,
                         'title' => $title,
                         'status' => 'todo',
-                    ])->all(),
+                    ])->values(),
                     'done_recent' => [],
                 ],
                 'messages' => [],
             ], 200);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::error('Guest chat error', ['message' => $e->getMessage()]);
-
-            return response()->json([
-                'ok' => false,
-                'reply' => MentalCatAiService::getFallbackReply(),
-            ], 200);
+            return response()->json($this->fallbackPayload(), 200);
         }
     }
 
-    /**
-     * Check if user message contains completion keywords.
-     */
-    private function shouldAllowTaskCompletion(string $message): bool
+    private function fallbackPayload(): array
     {
-        $keywords = ['やった', '終わった', 'できた', '完了', '済み', 'やっておいた', 'もう終わった'];
-
-        foreach ($keywords as $keyword) {
-            if (mb_strpos($message, $keyword) !== false) {
-                return true;
-            }
-        }
-
-        return false;
+        return [
+            'ok' => false,
+            'reply' => MentalCatAiService::getFallbackReply(),
+            'mood_guess' => null,
+            'bgm_key' => null,
+            'tasks' => [
+                'todo' => [],
+                'done_recent' => [],
+            ],
+            'messages' => [],
+        ];
     }
 
     private function normalizeMood(mixed $mood): ?string
@@ -274,7 +199,6 @@ class ChatController extends Controller
                 if (!is_array($task)) {
                     return '';
                 }
-
                 return trim((string) ($task['title'] ?? ''));
             })
             ->filter()
@@ -286,7 +210,6 @@ class ChatController extends Controller
                 if ($titles->contains($fallbackTitle)) {
                     continue;
                 }
-
                 $titles->push($fallbackTitle);
                 if ($titles->count() >= 3) {
                     break;
@@ -316,10 +239,5 @@ class ChatController extends Controller
                 '次の30分でやることを1つだけ決める',
             ],
         };
-    }
-
-    public function destroy(ChatMessage $chatMessage)
-    {
-        //
     }
 }
