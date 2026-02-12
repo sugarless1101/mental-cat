@@ -24,6 +24,7 @@ class ChatStoreRequest extends FormRequest
     {
         return [
             'message' => ['required', 'string', 'max:2000'],
+            'mood' => ['nullable', 'in:good,neutral,bad'],
         ];
     }
 

@@ -30,30 +30,29 @@ class ChatController extends Controller
     {
         $user = $request->user();
         $message = $request->input('message');
+        $mood = $this->normalizeMood($request->input('mood'));
+        $aiMessage = $this->buildAiMessage($message, $mood);
 
         try {
-            // ゲストの場合はコンテキストなしで処理
             if (!$user) {
-                return $this->handleGuestRequest($message);
+                return $this->handleGuestRequest($aiMessage, $mood);
             }
 
-            return DB::transaction(function () use ($user, $message) {
-                // 1. ユーザーのメッセージを保存
-                $userMsg = ChatMessage::create([
+            return DB::transaction(function () use ($user, $message, $mood, $aiMessage) {
+                ChatMessage::create([
                     'user_id' => $user->id,
                     'role' => 'user',
                     'content' => $message,
-                    'mood' => null,
+                    'mood' => $mood,
                 ]);
 
-                // 2. コンテキスト構築
-                $contextText = $this->contextBuilder->build($user);
+                $contextText = $this->appendMoodContext(
+                    $this->contextBuilder->build($user),
+                    $mood
+                );
 
-                // 5. "やったよ"判定（誤爆防止）
                 $allowTaskCompletion = $this->shouldAllowTaskCompletion($message);
-
-                // 4. OpenAI に投げる
-                $aiResponse = $this->aiService->makeResponse($message, $contextText, $allowTaskCompletion);
+                $aiResponse = $this->aiService->makeResponse($aiMessage, $contextText, $allowTaskCompletion);
 
                 if (!$aiResponse['ok']) {
                     Log::warning('AI response failed', ['error' => $aiResponse['error']]);
@@ -73,7 +72,6 @@ class ChatController extends Controller
 
                 $json = $aiResponse['json'] ?? [];
 
-                // 5. assistant の返事を保存
                 $assistantMsg = ChatMessage::create([
                     'user_id' => $user->id,
                     'role' => 'assistant',
@@ -82,21 +80,17 @@ class ChatController extends Controller
                     'memory_summary' => $json['memory_summary'] ?? null,
                 ]);
 
-                // 7. tasks_to_add を INSERT（最大3）
-                $tasksToAdd = array_slice($json['tasks_to_add'] ?? [], 0, 3);
-                foreach ($tasksToAdd as $taskData) {
-                    if (!empty($taskData['title'])) {
-                        Task::create([
-                            'user_id' => $user->id,
-                            'title' => $taskData['title'],
-                            'status' => 'todo',
-                            'source' => 'ai',
-                            'chat_message_id' => $assistantMsg->id,
-                        ]);
-                    }
+                $taskTitlesToAdd = $this->buildTaskTitlesToAdd($json, $mood, $message === '__start__');
+                foreach ($taskTitlesToAdd as $title) {
+                    Task::create([
+                        'user_id' => $user->id,
+                        'title' => $title,
+                        'status' => 'todo',
+                        'source' => 'ai',
+                        'chat_message_id' => $assistantMsg->id,
+                    ]);
                 }
 
-                // 8. tasks_to_complete があれば最新 todo を 1 件 done に
                 $tasksToComplete = $json['tasks_to_complete'] ?? [];
                 if ($allowTaskCompletion && !empty($tasksToComplete)) {
                     $todoTask = $user->tasks()
@@ -112,7 +106,6 @@ class ChatController extends Controller
                     }
                 }
 
-                // 9. 最新データを返す
                 $latestTasks = $user->tasks()
                     ->latest('created_at')
                     ->limit(10)
@@ -124,7 +117,6 @@ class ChatController extends Controller
                     ->get()
                     ->reverse();
 
-                // グルーピング：todo と最近完了済み(done_recent)
                 $todo = $latestTasks->where('status', 'todo')->values();
                 $doneRecent = $user->tasks()
                     ->where('status', 'done')
@@ -179,13 +171,15 @@ class ChatController extends Controller
     /**
      * Handle guest request (no user context)
      */
-    private function handleGuestRequest(string $message): JsonResponse
+    private function handleGuestRequest(string $message, ?string $mood): JsonResponse
     {
         try {
-            // コンテキストなしで AI を呼び出す
-            $simpleContext = "ユーザー初回メッセージ: {$message}";
+            $simpleContext = $this->appendMoodContext(
+                "ユーザーメッセージ: {$message}",
+                $mood
+            );
             $allowTaskCompletion = $this->shouldAllowTaskCompletion($message);
-            
+
             $aiResponse = $this->aiService->makeResponse($message, $simpleContext, $allowTaskCompletion);
 
             if (!$aiResponse['ok']) {
@@ -203,6 +197,7 @@ class ChatController extends Controller
             }
 
             $json = $aiResponse['json'] ?? [];
+            $taskTitlesToAdd = $this->buildTaskTitlesToAdd($json, $mood, $message === '__start__');
 
             return response()->json([
                 'ok' => true,
@@ -210,14 +205,18 @@ class ChatController extends Controller
                 'mood_guess' => $json['mood_guess'] ?? null,
                 'bgm_key' => $json['bgm_key'] ?? null,
                 'tasks' => [
-                    'todo' => [],
+                    'todo' => collect($taskTitlesToAdd)->map(fn($title) => [
+                        'id' => null,
+                        'title' => $title,
+                        'status' => 'todo',
+                    ])->all(),
                     'done_recent' => [],
                 ],
                 'messages' => [],
             ], 200);
         } catch (\Exception $e) {
             Log::error('Guest chat error', ['message' => $e->getMessage()]);
-            
+
             return response()->json([
                 'ok' => false,
                 'reply' => MentalCatAiService::getFallbackReply(),
@@ -226,14 +225,11 @@ class ChatController extends Controller
     }
 
     /**
-     * Check if user message contains completion keywords
-     *
-     * @param string $message
-     * @return bool
+     * Check if user message contains completion keywords.
      */
     private function shouldAllowTaskCompletion(string $message): bool
     {
-        $keywords = ['やった', '終わった', 'できた', '完了', '済み', 'やってた', 'やり終わった'];
+        $keywords = ['やった', '終わった', 'できた', '完了', '済み', 'やっておいた', 'もう終わった'];
 
         foreach ($keywords as $keyword) {
             if (mb_strpos($message, $keyword) !== false) {
@@ -244,17 +240,84 @@ class ChatController extends Controller
         return false;
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
-    // public function update(Request $request, ChatMessage $chatMessage)
-    // {
-    //     //
-    // }
+    private function normalizeMood(mixed $mood): ?string
+    {
+        if (!is_string($mood)) {
+            return null;
+        }
 
-    /**
-     * Remove the specified resource from storage.
-     */
+        return in_array($mood, ['good', 'neutral', 'bad'], true) ? $mood : null;
+    }
+
+    private function appendMoodContext(string $context, ?string $mood): string
+    {
+        if (!$mood) {
+            return $context;
+        }
+
+        return $context . "\n\n現在の気分: {$mood}";
+    }
+
+    private function buildAiMessage(string $message, ?string $mood): string
+    {
+        if ($message !== '__start__' || !$mood) {
+            return $message;
+        }
+
+        return "いまの気分は{$mood}です。気分に合わせた短い返答をして、メンタルに良いタスクを3つおすすめしてください。";
+    }
+
+    private function buildTaskTitlesToAdd(array $json, ?string $mood, bool $useFallback): array
+    {
+        $titles = collect(array_slice($json['tasks_to_add'] ?? [], 0, 3))
+            ->map(function ($task) {
+                if (!is_array($task)) {
+                    return '';
+                }
+
+                return trim((string) ($task['title'] ?? ''));
+            })
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($useFallback && $titles->count() < 3) {
+            foreach ($this->fallbackTaskTitlesForMood($mood) as $fallbackTitle) {
+                if ($titles->contains($fallbackTitle)) {
+                    continue;
+                }
+
+                $titles->push($fallbackTitle);
+                if ($titles->count() >= 3) {
+                    break;
+                }
+            }
+        }
+
+        return $titles->take(3)->all();
+    }
+
+    private function fallbackTaskTitlesForMood(?string $mood): array
+    {
+        return match ($mood) {
+            'bad' => [
+                '深呼吸を1分だけして体の力を抜く',
+                '白湯か水をゆっくり1杯飲む',
+                '今の気持ちを一言だけメモに書く',
+            ],
+            'good' => [
+                '軽くストレッチを2分して体をほぐす',
+                '今日うれしかったことを1つ書き出す',
+                '明日の自分を助ける小タスクを1つ終わらせる',
+            ],
+            default => [
+                '背筋を伸ばして深呼吸を3回する',
+                '5分だけ散歩かその場足踏みをする',
+                '次の30分でやることを1つだけ決める',
+            ],
+        };
+    }
+
     public function destroy(ChatMessage $chatMessage)
     {
         //
