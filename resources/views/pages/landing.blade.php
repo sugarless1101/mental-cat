@@ -26,17 +26,33 @@
       transform: scale(5);
     }
   }
+  #mood-panel {
+    z-index: 60;
+    pointer-events: auto;
+  }
+  #mood-panel button {
+    cursor: pointer;
+    padding: 0.4rem 0.6rem;
+    border-radius: 0.5rem;
+    pointer-events: auto;
+  }
+  #mood-panel.small ul li button {
+    padding: 0.5rem 0.75rem;
+  }
+  .task_list {
+    z-index: 10;
+  }
 </style>
 
 <div id="bg-circle-layer" class="bg-circle-layer" aria-hidden="true"></div>
 
-<header id="app-header" class="relative z-10 flex justify-between items-center p-4 bg-[#222222] border-b border-white/10">
+<header id="app-header" class="relative z-20 flex justify-between items-center p-4 bg-[#222222] border-b border-white/10">
   <p class="text-xl tracking-wide">Mental Cat</p>
-  <div class="relative">
+  <div class="relative z-50">
     <button id="hamburger-btn" class="text-graylight hover:text-accent transition" aria-label="menu">
       <i class="fa-solid fa-bars"></i>
     </button>
-    <div id="hamburger-menu" class="hidden absolute right-0 mt-2 w-40 bg-white/5 border border-white/10 rounded-md shadow-md py-2 z-20">
+    <div id="hamburger-menu" class="hidden absolute right-0 mt-2 w-40 bg-[#222222] border border-white/10 rounded-md shadow-md py-2 z-[120] pointer-events-auto">
       @guest
         <a href="{{ route('login') }}" class="block px-4 py-2 text-sm text-graylight hover:bg-white/10">ログイン</a>
         <a href="{{ route('register') }}" class="block px-4 py-2 text-sm text-graylight hover:bg-white/10">アカウント作成</a>
@@ -151,18 +167,15 @@ function normalizeForMatch(value) {
 function taskStem(value) {
   return normalizeForMatch(value).replace(/(を)?(する|します|した|したよ|したよね|できた|完了|る|た|だ|んだ|んだよ)$/u, '');
 }
-
 function diceCoefficient(a, b) {
   if (!a || !b) return 0;
   if (a === b) return 1;
   if (a.length < 2 || b.length < 2) return 0;
-
   const grams = new Map();
   for (let i = 0; i < a.length - 1; i += 1) {
     const g = a.slice(i, i + 2);
     grams.set(g, (grams.get(g) || 0) + 1);
   }
-
   let overlap = 0;
   for (let i = 0; i < b.length - 1; i += 1) {
     const g = b.slice(i, i + 2);
@@ -172,7 +185,6 @@ function diceCoefficient(a, b) {
       overlap += 1;
     }
   }
-
   return (2 * overlap) / ((a.length - 1) + (b.length - 1));
 }
 
@@ -210,7 +222,6 @@ function renderTaskPanel() {
 function mergeTaskStateFromPayload(payload, showRecommendation) {
   const incoming = parseTaskState(payload);
   if (!incoming.length) return;
-
   const existingDone = taskState.filter((t) => t.status === 'done');
   const merged = incoming.map((task) => {
     const matchedDone = existingDone.find((done) => {
@@ -220,15 +231,12 @@ function mergeTaskStateFromPayload(payload, showRecommendation) {
     });
     return matchedDone ? { ...task, status: 'done' } : task;
   });
-
   existingDone.forEach((done) => {
     const exists = merged.find((t) => (done.id && t.id && String(done.id) === String(t.id)) || t.title === done.title);
     if (!exists) merged.push(done);
   });
-
   taskState = merged;
   renderTaskPanel();
-
   if (showRecommendation) {
     const lines = incoming.slice(0, 3).map((t, i) => `${i + 1}. ${t.title}`);
     if (lines.length) addBubble(`今日のおすすめタスクだよ\n${lines.join('\n')}`, 'left');
@@ -238,12 +246,10 @@ function mergeTaskStateFromPayload(payload, showRecommendation) {
 function containsCompletionIntent(text) {
   return /(終わった|終えた|完了|できた|やった|済んだ|達成|したよ|した|しました|してきた|してきました|たよ|ました|done|finished)/i.test(text);
 }
-
 function findCompletionCandidate(text) {
   if (!containsCompletionIntent(text)) return null;
   const message = normalizeForMatch(text);
   let best = null;
-
   taskState.filter((t) => t.status !== 'done').forEach((task) => {
     const full = normalizeForMatch(task.title);
     const stem = taskStem(task.title);
@@ -254,11 +260,9 @@ function findCompletionCandidate(text) {
     score += diceCoefficient(message, stem) * 4;
     if (score > 0 && (!best || score > best.score)) best = { ...task, score };
   });
-
   if (!best || best.score < 4.5) return null;
   return best;
 }
-
 function isAffirmative(text) {
   return /^(はい|うん|yes|ok|了解|お願い|そう)/i.test(text.trim());
 }
@@ -284,7 +288,6 @@ async function persistTaskDone(task) {
 async function handlePendingTaskConfirmation(messageText) {
   if (!pendingTaskConfirm) return false;
   const target = pendingTaskConfirm;
-
   if (isAffirmative(messageText)) {
     taskState = taskState.map((task) => {
       const sameId = target.id && task.id && String(target.id) === String(task.id);
@@ -292,19 +295,16 @@ async function handlePendingTaskConfirmation(messageText) {
       return (sameId || sameTitle) ? { ...task, status: 'done' } : task;
     });
     renderTaskPanel();
-
     await persistTaskDone(target);
     addBubble(`いいね、達成できたにゃ。「${target.title}」すごいにゃ。`, 'left');
     pendingTaskConfirm = null;
     return true;
   }
-
   if (isNegative(messageText)) {
     addBubble('了解にゃ。今回は未完了のままにしておくにゃ。', 'left');
     pendingTaskConfirm = null;
     return true;
   }
-
   addBubble(`「${target.title}」を達成したにゃんね？（はい/いいえ）`, 'left');
   return true;
 }
@@ -323,7 +323,6 @@ async function sendChatMessage(message, mood, showRecommendation = false) {
     let data = null;
     try { data = JSON.parse(raw); } catch {}
     hideTyping();
-
     if (res.ok && data && typeof data.reply === 'string') {
       addBubble(data.reply, 'left');
       if (showRecommendation) {
@@ -346,7 +345,6 @@ function setMood(mood) {
   localStorage.setItem('cc_mood', mood);
   moodPanel.classList.add('small');
   sendChatMessage('__start__', mood, true);
-
   if (IS_AUTH) {
     const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
     fetch(API_MOOD, {
@@ -364,7 +362,6 @@ function setMood(mood) {
     moodPanel.classList.add('small');
   }
   renderTaskPanel();
-
   document.querySelectorAll('[data-mood]').forEach((btn) => {
     btn.addEventListener('click', () => setMood(btn.getAttribute('data-mood')));
   });

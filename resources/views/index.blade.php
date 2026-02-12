@@ -43,9 +43,26 @@
 <body class="bg-dark text-graylight min-h-screen flex flex-col justify-between font-sans">
   <div id="bg-circle-layer" class="bg-circle-layer" aria-hidden="true"></div>
 
-  <header id="app-header" class="relative z-10 flex justify-between items-center p-4 bg-[#222222] border-b border-white/10">
+  <header id="app-header" class="relative z-20 flex justify-between items-center p-4 bg-[#222222] border-b border-white/10">
     <p class="text-xl tracking-wide">Mental Cat</p>
-    <button class="text-graylight hover:text-accent transition" aria-label="menu"><i class="fa-solid fa-bars"></i></button>
+    <div class="relative z-50">
+      <button id="hamburger-btn" class="text-graylight hover:text-accent transition" aria-label="menu">
+        <i class="fa-solid fa-bars"></i>
+      </button>
+      <div id="hamburger-menu" class="hidden absolute right-0 mt-2 w-40 bg-[#222222] border border-white/10 rounded-md shadow-md py-2 z-[120] pointer-events-auto">
+        @guest
+          <a href="{{ route('login') }}" class="block px-4 py-2 text-sm text-graylight hover:bg-white/10">ログイン</a>
+          <a href="{{ route('register') }}" class="block px-4 py-2 text-sm text-graylight hover:bg-white/10">アカウント作成</a>
+        @endguest
+        @auth
+          <a href="{{ route('app') }}" class="block px-4 py-2 text-sm text-graylight hover:bg-white/10">ダッシュボード</a>
+          <form id="logout-form-menu" method="POST" action="{{ route('logout') }}">
+            @csrf
+            <button type="submit" class="w-full text-left px-4 py-2 text-sm text-graylight hover:bg-white/10">ログアウト</button>
+          </form>
+        @endauth
+      </div>
+    </div>
   </header>
 
   <main class="relative z-10 flex flex-1 justify-center items-center p-4">
@@ -313,6 +330,20 @@ function setMood(mood) {
   }
   renderTaskPanel();
   document.querySelectorAll('[data-mood]').forEach((btn) => btn.addEventListener('click', () => setMood(btn.getAttribute('data-mood'))));
+
+  const menuBtn = document.getElementById('hamburger-btn');
+  const menu = document.getElementById('hamburger-menu');
+  if (menuBtn && menu) {
+    menuBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      menu.classList.toggle('hidden');
+    });
+    document.addEventListener('click', (e) => {
+      if (!menu.classList.contains('hidden') && !menu.contains(e.target) && !menuBtn.contains(e.target)) {
+        menu.classList.add('hidden');
+      }
+    });
+  }
 })();
 
 form.addEventListener('submit', async (e) => {

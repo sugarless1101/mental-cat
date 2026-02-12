@@ -4,7 +4,13 @@
     <div class="max-w-7xl mx-auto px-4 py-6">
         <header class="flex items-center justify-between mb-6 p-4 rounded-xl bg-[#222222] border border-white/10">
             <h1 class="text-3xl font-bold">🐈‍⬛ Mental Cat</h1>
-            <form method="POST" action="{{ route('logout') }}">@csrf<button class="text-sm">ログアウト</button></form>
+            <div class="flex items-center gap-3">
+                <a href="{{ route('home') }}" class="text-sm px-3 py-1.5 rounded-md border border-white/20 bg-white/5 hover:bg-white/10 transition">メインページへ戻る</a>
+                <form method="POST" action="{{ route('logout') }}">
+                    @csrf
+                    <button class="text-sm">ログアウト</button>
+                </form>
+            </div>
         </header>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
