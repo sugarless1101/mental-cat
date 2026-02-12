@@ -1,8 +1,37 @@
 @extends('layouts.guest')
 
 @section('content')
-<header class="flex justify-between items-center p-4 bg-white/5 border-b border-white/10">
-  <p class="text-xl tracking-wide">Calm Cat</p>
+<style>
+  .bg-circle-layer {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    top: 0;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+  }
+  .bg-circle {
+    animation: grow-circle 3s linear;
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    border-radius: 50%;
+    position: absolute;
+    height: 50px;
+    width: 50px;
+  }
+  @keyframes grow-circle {
+    to {
+      opacity: 0;
+      transform: scale(5);
+    }
+  }
+</style>
+
+<div id="bg-circle-layer" class="bg-circle-layer" aria-hidden="true"></div>
+
+<header id="app-header" class="relative z-10 flex justify-between items-center p-4 bg-[#222222] border-b border-white/10">
+  <p class="text-xl tracking-wide">Mental Cat</p>
   <div class="relative">
     <button id="hamburger-btn" class="text-graylight hover:text-accent transition" aria-label="menu">
       <i class="fa-solid fa-bars"></i>
@@ -23,7 +52,7 @@
   </div>
 </header>
 
-<main class="flex flex-1 justify-center items-center relative p-4">
+<main class="relative z-10 flex flex-1 justify-center items-center p-4">
   <div class="task_list absolute left-8 top-1/2 -translate-y-1/2 w-1/5 bg-white/5 rounded-xl p-4 text-sm text-gray-300 shadow-md border border-white/10">
     <p class="text-accent mb-3 font-semibold tracking-widest">TASK</p>
     <ul id="task-items" class="space-y-3">
@@ -62,7 +91,7 @@
   </div>
 </main>
 
-<div class="chat fixed bottom-4 left-1/2 -translate-x-1/2 w-3/4 max-w-2xl bg-white/5 rounded-xl p-3 border border-white/10 backdrop-blur-md">
+<div class="chat fixed z-10 bottom-4 left-1/2 -translate-x-1/2 w-3/4 max-w-2xl bg-white/5 rounded-xl p-3 border border-white/10 backdrop-blur-md">
   <div id="chat-box" class="h-56 overflow-y-auto mb-3 space-y-2 pr-1"></div>
   <form id="chat-form" class="flex items-center gap-3">
     <input id="message" type="text" placeholder="猫に話しかけてみて"
@@ -375,5 +404,28 @@ form.addEventListener('submit', async (e) => {
 
   await sendChatMessage(text, currentMood, false);
 });
+
+function createCircle() {
+  const layer = document.getElementById('bg-circle-layer');
+  if (!layer) return;
+  const circle = document.createElement('div');
+  circle.classList.add('bg-circle');
+  circle.style.top = `${Math.random() * layer.clientHeight}px`;
+  circle.style.left = `${Math.random() * layer.clientWidth}px`;
+  layer.appendChild(circle);
+  setTimeout(() => circle.remove(), 3000);
+}
+
+function syncBgLayerTop() {
+  const header = document.getElementById('app-header');
+  const layer = document.getElementById('bg-circle-layer');
+  if (!header || !layer) return;
+  layer.style.top = `${header.offsetHeight}px`;
+}
+
+const bgCircleInterval = setInterval(createCircle, 300);
+syncBgLayerTop();
+window.addEventListener('resize', syncBgLayerTop);
+window.addEventListener('beforeunload', () => clearInterval(bgCircleInterval));
 </script>
 @endsection
