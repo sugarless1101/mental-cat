@@ -9,6 +9,7 @@ use App\Models\Task;
 use App\Services\ChatContextBuilder;
 use App\Services\MentalCatAiService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -65,7 +66,13 @@ class ChatController extends Controller
                     'memory_summary' => $json['memory_summary'] ?? null,
                 ]);
 
+                $recommendationMessage = null;
                 if ($message === '__start__') {
+                    // Replace previous pending tasks with the new recommendation set.
+                    Task::where('user_id', $user->id)
+                        ->where('status', 'todo')
+                        ->delete();
+
                     $taskTitlesToAdd = $this->buildTaskTitlesToAdd($json, $mood, true);
                     foreach ($taskTitlesToAdd as $title) {
                         Task::create([
@@ -76,36 +83,25 @@ class ChatController extends Controller
                             'chat_message_id' => $assistantMsg->id,
                         ]);
                     }
+
+                    $recommendationMessage = $this->buildRecommendationMessage($taskTitlesToAdd);
+                    if ($recommendationMessage) {
+                        ChatMessage::create([
+                            'user_id' => $user->id,
+                            'role' => 'assistant',
+                            'content' => $recommendationMessage,
+                            'mood' => $mood,
+                        ]);
+                    }
                 }
 
-                $latestTasks = $user->tasks()->latest('created_at')->limit(10)->get();
-                $latestMessages = $user->chatMessages()->latest('created_at')->limit(10)->get()->reverse();
-                $todo = $latestTasks->where('status', 'todo')->values();
-                $doneRecent = $user->tasks()->where('status', 'done')->latest('done_at')->limit(10)->get();
-
-                return response()->json([
+                return response()->json(array_merge([
                     'ok' => true,
                     'reply' => $assistantMsg->content,
+                    'recommendation_message' => $recommendationMessage,
                     'mood_guess' => $json['mood_guess'] ?? null,
                     'bgm_key' => $json['bgm_key'] ?? null,
-                    'tasks' => [
-                        'todo' => $todo->map(fn($t) => [
-                            'id' => $t->id,
-                            'title' => $t->title,
-                            'status' => $t->status,
-                        ])->values(),
-                        'done_recent' => $doneRecent->map(fn($t) => [
-                            'id' => $t->id,
-                            'title' => $t->title,
-                            'status' => $t->status,
-                        ])->values(),
-                    ],
-                    'messages' => $latestMessages->map(fn($m) => [
-                        'id' => $m->id,
-                        'role' => $m->role,
-                        'content' => $m->content,
-                    ])->values(),
-                ], 200);
+                ], $this->buildStatePayload($user)), 200);
             });
         } catch (\Throwable $e) {
             Log::error('ChatController@store error', [
@@ -114,6 +110,26 @@ class ChatController extends Controller
             ]);
             return response()->json($this->fallbackPayload(), 200);
         }
+    }
+
+    public function state(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        if (!$user) {
+            return response()->json([
+                'ok' => true,
+                'tasks' => [
+                    'todo' => [],
+                    'done_recent' => [],
+                ],
+                'messages' => [],
+            ], 200);
+        }
+
+        return response()->json(array_merge([
+            'ok' => true,
+        ], $this->buildStatePayload($user)), 200);
     }
 
     private function handleGuestRequest(string $message, ?string $mood): JsonResponse
@@ -128,10 +144,14 @@ class ChatController extends Controller
 
             $json = $aiResponse['json'] ?? [];
             $taskTitlesToAdd = $this->buildTaskTitlesToAdd($json, $mood, $message === '__start__');
+            $recommendationMessage = $message === '__start__'
+                ? $this->buildRecommendationMessage($taskTitlesToAdd)
+                : null;
 
             return response()->json([
                 'ok' => true,
                 'reply' => $json['reply'] ?? MentalCatAiService::getFallbackReply(),
+                'recommendation_message' => $recommendationMessage,
                 'mood_guess' => $json['mood_guess'] ?? null,
                 'bgm_key' => $json['bgm_key'] ?? null,
                 'tasks' => [
@@ -239,5 +259,55 @@ class ChatController extends Controller
                 '次の30分でやることを1つだけ決める',
             ],
         };
+    }
+
+    private function buildRecommendationMessage(array $titles): ?string
+    {
+        if (count($titles) === 0) {
+            return null;
+        }
+
+        $lines = array_values(array_map(
+            fn($title, $i) => ($i + 1) . '. ' . $title,
+            $titles,
+            array_keys($titles)
+        ));
+
+        return "気分に合ったおすすめタスクにゃ:\n" . implode("\n", $lines);
+    }
+
+    private function buildStatePayload($user): array
+    {
+        $latestTasks = $user->tasks()->latest('created_at')->limit(10)->get();
+        $todo = $latestTasks->where('status', 'todo')->values();
+        $doneRecent = $user->tasks()->where('status', 'done')->latest('done_at')->limit(10)->get();
+
+        $latestMessages = $user->chatMessages()
+            ->where('content', '!=', '__start__')
+            ->latest('created_at')
+            ->limit(30)
+            ->get()
+            ->reverse()
+            ->values();
+
+        return [
+            'tasks' => [
+                'todo' => $todo->map(fn($t) => [
+                    'id' => $t->id,
+                    'title' => $t->title,
+                    'status' => $t->status,
+                ])->values(),
+                'done_recent' => $doneRecent->map(fn($t) => [
+                    'id' => $t->id,
+                    'title' => $t->title,
+                    'status' => $t->status,
+                ])->values(),
+            ],
+            'messages' => $latestMessages->map(fn($m) => [
+                'id' => $m->id,
+                'role' => $m->role,
+                'content' => $m->content,
+            ])->values(),
+        ];
     }
 }

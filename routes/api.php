@@ -9,3 +9,6 @@ Route::get('/ping', fn () => response()->json(['ok' => true]));
 // チャットAPI（公開、認証オプション）
 Route::post('/chat', [ChatController::class, 'store'])
     ->name('api.chat.store');
+
+Route::get('/chat/state', [ChatController::class, 'state'])
+    ->name('api.chat.state');

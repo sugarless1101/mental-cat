@@ -17,6 +17,10 @@ Route::post('/app/chat', [\App\Http\Controllers\Api\ChatController::class, 'stor
     ->middleware(['auth'])
     ->name('app.chat.store');
 
+Route::get('/app/chat/state', [\App\Http\Controllers\Api\ChatController::class, 'state'])
+    ->middleware(['auth'])
+    ->name('app.chat.state');
+
 // タスク手動完了（confirm -> APIで完了）
 Route::post('/app/tasks/{task}/complete', [\App\Http\Controllers\TaskController::class, 'completeManual'])
     ->middleware(['auth'])

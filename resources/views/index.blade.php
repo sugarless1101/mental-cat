@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
@@ -105,9 +105,10 @@
   </div>
 
 <script>
-const API_CHAT = "{{ url('/api/chat') }}";
-const API_TASK_BASE = "{{ url('/app/tasks') }}";
 const IS_AUTH = Boolean(window.IS_AUTHENTICATED);
+const API_CHAT = IS_AUTH ? "{{ route('app.chat.store') }}" : "{{ route('api.chat.store') }}";
+const API_CHAT_STATE = IS_AUTH ? "{{ route('app.chat.state') }}" : "{{ route('api.chat.state') }}";
+const API_TASK_BASE = "{{ url('/app/tasks') }}";
 
 const chatBox = document.getElementById('chat-box');
 const form = document.getElementById('chat-form');
@@ -152,7 +153,7 @@ function normalizeForMatch(value) {
   return sanitizeTaskTitle(value).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
 }
 function taskStem(value) {
-  return normalizeForMatch(value).replace(/(を)?(する|します|した|したよ|したよね|できた|完了|る|た|だ|んだ|んだよ)$/u, '');
+  return normalizeForMatch(value).replace(/(する|した|します|完了|やった)$/u, '');
 }
 function diceCoefficient(a, b) {
   if (!a || !b) return 0;
@@ -176,11 +177,29 @@ function diceCoefficient(a, b) {
 }
 
 function parseTaskState(payload) {
-  return (payload?.tasks?.todo ?? []).slice(0, 10).map((task) => ({
+  const merged = (payload?.tasks?.todo ?? []).slice(0, 10);
+  const seen = new Set();
+  return merged.map((task) => ({
     id: task?.id ?? null,
     title: sanitizeTaskTitle(task?.title),
     status: task?.status === 'done' ? 'done' : 'todo',
-  })).filter((task) => task.title);
+  })).filter((task) => {
+    if (!task.title) return false;
+    const key = `${task.id ?? 'noid'}:${task.title}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function parseMessageState(payload) {
+  return (payload?.messages ?? [])
+    .map((message) => ({
+      role: message?.role === 'user' ? 'user' : 'assistant',
+      content: sanitizeTaskTitle(message?.content),
+    }))
+    .filter((message) => message.content && message.content !== '__start__')
+    .slice(-30);
 }
 function renderTaskPanel() {
   if (!taskState.length) {
@@ -218,37 +237,74 @@ function mergeTaskStateFromPayload(payload, showRecommendation) {
   });
   taskState = merged;
   renderTaskPanel();
-  if (showRecommendation) {
-    const lines = incoming.slice(0, 3).map((t, i) => `${i + 1}. ${t.title}`);
-    if (lines.length) addBubble(`今日のおすすめタスクだよ\n${lines.join('\n')}`, 'left');
+}
+
+function renderMessageHistory(messages) {
+  chatBox.innerHTML = '';
+  messages.forEach((message) => {
+    addBubble(message.content, message.role === 'user' ? 'right' : 'left');
+  });
+}
+
+async function hydrateStateIfAuthenticated() {
+  if (!IS_AUTH) return;
+  try {
+    const res = await fetch(API_CHAT_STATE, { method: 'GET', headers: { 'Accept': 'application/json' } });
+    if (!res.ok) return;
+    const payload = await res.json();
+    taskState = parseTaskState(payload);
+    renderTaskPanel();
+    renderMessageHistory(parseMessageState(payload));
+  } catch {
+    // no-op: keep current empty state if hydration fails
   }
 }
 
 function containsCompletionIntent(text) {
-  return /(終わった|終えた|完了|できた|やった|済んだ|達成|したよ|した|しました|してきた|してきました|たよ|ました|done|finished)/i.test(text);
+  return /(終わった|終えた|完了|できた|やった|した|しました|済んだ|済ませた|読んだ|行った|飲んだ|聴いた|done|finished)/i.test(text);
 }
 function findCompletionCandidate(text) {
-  if (!containsCompletionIntent(text)) return null;
   const msg = normalizeForMatch(text);
+  const hasIntent = containsCompletionIntent(text);
+  const openTasks = taskState.filter((t) => t.status !== 'done');
+
+  // Prefer deterministic direct matching first.
+  let direct = null;
+  openTasks.forEach((task) => {
+    const full = normalizeForMatch(task.title);
+    const stem = taskStem(task.title);
+    const directHit = (full && (msg.includes(full) || full.includes(msg)))
+      || (stem && stem.length >= 3 && (msg.includes(stem) || stem.includes(msg)));
+    if (directHit) {
+      const len = Math.max((full || '').length, (stem || '').length);
+      if (!direct || len > direct.matchLen) {
+        direct = { ...task, matchLen: len };
+      }
+    }
+  });
+  if (direct) return direct;
+
   let best = null;
-  taskState.filter((t) => t.status !== 'done').forEach((task) => {
+  openTasks.forEach((task) => {
     const full = normalizeForMatch(task.title);
     const stem = taskStem(task.title);
     let score = 0;
-    if (full && msg.includes(full)) score += 10;
-    if (stem && stem.length >= 4 && msg.includes(stem)) score += 8;
+    if (full && msg.includes(full)) score += 8;
+    if (stem && stem.length >= 3 && msg.includes(stem)) score += 7;
     score += diceCoefficient(msg, full) * 6;
     score += diceCoefficient(msg, stem) * 4;
     if (score > 0 && (!best || score > best.score)) best = { ...task, score };
   });
-  if (!best || best.score < 4.5) return null;
-  return best;
+  if (!best) return null;
+  if (hasIntent && best.score >= 3.5) return best;
+  if (!hasIntent && best.score >= 6.5) return best;
+  return null;
 }
 function isAffirmative(text) {
-  return /^(はい|うん|yes|ok|了解|お願い|そう)/i.test(text.trim());
+  return /^(はい|yes|ok|了解|うん|そう)/i.test(text.trim());
 }
 function isNegative(text) {
-  return /^(いいえ|いや|no|違う|まだ|キャンセル)/i.test(text.trim());
+  return /^(いいえ|no|違う|まだ|キャンセル)/i.test(text.trim());
 }
 
 async function persistTaskDone(task) {
@@ -273,16 +329,16 @@ async function handlePendingTaskConfirmation(text) {
     });
     renderTaskPanel();
     await persistTaskDone(target);
-    addBubble(`いいね、達成できたにゃ。「${target.title}」すごいにゃ。`, 'left');
+    addBubble(`いいね。${target.title} を完了にしたよ。`, 'left');
     pendingTaskConfirm = null;
     return true;
   }
   if (isNegative(text)) {
-    addBubble('了解にゃ。今回は未完了のままにしておくにゃ。', 'left');
+    addBubble('了解。タスクはまだ完了にしないでおくね。', 'left');
     pendingTaskConfirm = null;
     return true;
   }
-  addBubble(`「${target.title}」を達成したにゃんね？（はい/いいえ）`, 'left');
+  addBubble(`「${target.title}」を完了にする？（はい / いいえ）`, 'left');
   return true;
 }
 
@@ -291,9 +347,10 @@ async function sendChat(message, mood, showRecommendation = false) {
   sendBtn.classList.add('opacity-60', 'cursor-not-allowed');
   showTyping();
   try {
+    const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
     const res = await fetch(API_CHAT, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': token },
       body: JSON.stringify({ message, mood }),
     });
     const raw = await res.text();
@@ -302,13 +359,16 @@ async function sendChat(message, mood, showRecommendation = false) {
     hideTyping();
     if (res.ok && data && typeof data.reply === 'string') {
       addBubble(data.reply, 'left');
+      if (showRecommendation && typeof data.recommendation_message === 'string' && data.recommendation_message.trim()) {
+        addBubble(data.recommendation_message, 'left');
+      }
       if (showRecommendation) mergeTaskStateFromPayload(data, true);
     } else {
       addBubble('サーバーから正しい返事が来なかったにゃ。', 'left');
     }
   } catch {
     hideTyping();
-    addBubble('接続が不安定みたいにゃ。', 'left');
+    addBubble('通信が不安定みたいにゃ。少し待ってからもう一度試してにゃ。', 'left');
   } finally {
     sendBtn.disabled = false;
     sendBtn.classList.remove('opacity-60', 'cursor-not-allowed');
@@ -322,13 +382,12 @@ function setMood(mood) {
   sendChat('__start__', mood, true);
 }
 
-(function init() {
-  const saved = localStorage.getItem('cc_mood');
-  if (saved) {
-    currentMood = saved;
-    moodPanel.classList.add('small');
-  }
+(async function init() {
+  currentMood = null;
+  moodPanel.classList.remove('small');
+  localStorage.removeItem('cc_mood');
   renderTaskPanel();
+  await hydrateStateIfAuthenticated();
   document.querySelectorAll('[data-mood]').forEach((btn) => btn.addEventListener('click', () => setMood(btn.getAttribute('data-mood'))));
 
   const menuBtn = document.getElementById('hamburger-btn');
@@ -359,7 +418,7 @@ form.addEventListener('submit', async (e) => {
   const candidate = findCompletionCandidate(text);
   if (candidate) {
     pendingTaskConfirm = candidate;
-    addBubble(`「${candidate.title}」を達成したにゃんね？（はい/いいえ）`, 'left');
+    addBubble(`「${candidate.title}」を完了にする？（はい / いいえ）`, 'left');
     return;
   }
 
