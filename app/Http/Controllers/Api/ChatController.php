@@ -69,6 +69,12 @@ class ChatController extends Controller
                     'memory_summary' => $json['memory_summary'] ?? null,
                 ]);
 
+                // LlmLog に chat_message_id を紐付け（フィードバックUI用）
+                if (!empty($aiResponse['llm_log_id'])) {
+                    \App\Models\LlmLog::where('id', $aiResponse['llm_log_id'])
+                        ->update(['chat_message_id' => $assistantMsg->id]);
+                }
+
                 $recommendationMessage = null;
                 if ($message === '__start__') {
                     // Replace previous pending tasks with the new recommendation set.
@@ -113,6 +119,7 @@ class ChatController extends Controller
                 return response()->json(array_merge([
                     'ok' => true,
                     'reply' => $assistantMsg->content,
+                    'chat_message_id' => $assistantMsg->id,
                     'recommendation_message' => $recommendationMessage,
                     'mood_guess' => $json['mood_guess'] ?? null,
                     'bgm_key' => $json['bgm_key'] ?? null,

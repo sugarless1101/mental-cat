@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AdminController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\MainPageController;
 use App\Http\Controllers\DashboardController;
@@ -46,5 +47,15 @@ Route::middleware('auth')->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
+
+// フィードバック（認証済みユーザーのみ）
+Route::post('/app/feedback', [\App\Http\Controllers\Api\FeedbackController::class, 'store'])
+    ->middleware(['auth'])
+    ->name('app.feedback.store');
+
+// Admin（開発者専用・APP_ENV=local のみ or X-Admin-Secret ヘッダー認証）
+Route::get('/admin', [AdminController::class, 'index'])
+    ->middleware('admin.guard')
+    ->name('admin');
 
 require __DIR__.'/auth.php';

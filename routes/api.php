@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\ChatController;
+use App\Http\Controllers\Api\FeedbackController;
 
 // 疎通確認（必要なければ後で消してOK）
 Route::get('/ping', fn () => response()->json(['ok' => true]));
@@ -14,4 +15,8 @@ Route::middleware('throttle:30,1')->group(function () {
 
     Route::get('/chat/state', [ChatController::class, 'state'])
         ->name('api.chat.state');
+
+    Route::post('/feedback', [FeedbackController::class, 'store'])
+        ->middleware('auth:sanctum')
+        ->name('api.feedback.store');
 });

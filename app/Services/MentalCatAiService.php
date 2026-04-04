@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\LlmLog;
+use App\Services\PromptRepository;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -10,7 +11,7 @@ class MentalCatAiService
 {
     private const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
     private const TIMEOUT = 30;
-    private const PROMPT_VERSION = 'v1';
+    // PROMPT_VERSION は PromptRepository で管理
 
     private string $apiKey;
 
@@ -38,7 +39,9 @@ class MentalCatAiService
         bool $allowTaskCompletion = false,
         ?int $userId = null
     ): array {
-        $systemPrompt = $this->buildSystemPrompt($allowTaskCompletion);
+        $prompt = PromptRepository::getActive($allowTaskCompletion);
+        $systemPrompt = $prompt['content'];
+        $promptVersion = $prompt['version'];
 
         $messages = [
             [
@@ -97,12 +100,13 @@ class MentalCatAiService
             // Guardrails
             $json = $this->validateAndSanitize($json);
 
-            $this->writeLog($userId, $latencyMs, $tokensIn, $tokensOut, true);
+            $llmLog = $this->writeLog($userId, $latencyMs, $tokensIn, $tokensOut, true, null, $promptVersion);
 
             return [
-                'ok'    => true,
-                'reply' => $json['reply'] ?? null,
-                'json'  => $json,
+                'ok'         => true,
+                'reply'      => $json['reply'] ?? null,
+                'json'       => $json,
+                'llm_log_id' => $llmLog?->id,
             ];
         } catch (\Illuminate\Http\Client\RequestException $e) {
             $latencyMs = (int) ((microtime(true) - $startedAt) * 1000);
@@ -174,13 +178,14 @@ class MentalCatAiService
         int $tokensIn,
         int $tokensOut,
         bool $ok,
-        ?string $errorMessage = null
-    ): void {
+        ?string $errorMessage = null,
+        ?string $promptVersion = null
+    ): ?LlmLog {
         try {
-            LlmLog::create([
+            return LlmLog::create([
                 'user_id'        => $userId,
                 'model'          => 'gpt-4o',
-                'prompt_version' => self::PROMPT_VERSION,
+                'prompt_version' => $promptVersion ?? PromptRepository::getActive()['version'],
                 'tokens_in'      => $tokensIn,
                 'tokens_out'     => $tokensOut,
                 'cost_estimate'  => ($tokensIn * 0.0000025) + ($tokensOut * 0.00001),
@@ -191,48 +196,8 @@ class MentalCatAiService
         } catch (\Exception $e) {
             // ログ保存失敗はサービス本体に影響させない
             Log::error('Failed to write LlmLog', ['message' => $e->getMessage()]);
+            return null;
         }
     }
 
-    private function buildSystemPrompt(bool $allowTaskCompletion): string
-    {
-        $completeRule = $allowTaskCompletion
-            ? 'タスク完了（tasks_to_complete）を提案できます。'
-            : 'タスク完了（tasks_to_complete）は提案しないでください。';
-
-        return <<<PROMPT
-あなたは心身を整えるためのアドバイザー（猫キャラ）です。
-
-## 役割
-- 診断・治療はしない
-- セルフケア（水を飲む，深呼吸，散歩など）を提案
-- ユーザーの気分状態を観察してタスクを最大3つ提案
-- **JSON のみを返す。説明やコードブロック記号は含めない**
-
-## JSON形式（このオブジェクトだけを返す）
-
-{
-  "reply": "猫の返事（必須、日本語、親切な口調）",
-  "mood_guess": "good|neutral|bad",
-  "memory_summary": "会話の要点（1行、最大100文字程度）",
-  "tasks_to_add": [
-    {"title": "短いタスク", "reason": "なぜこのタスク"}
-  ],
-  "tasks_to_complete": [],
-  "bgm_key": "calm|focus|refresh|sleep"
-}
-
-## ルール
-- JSON オブジェクトだけを出力する。説明もコードブロック（```）も含めない
-- タスク生成は最大3つ
-- 各タスクのtitleは20-40文字程度
-- メンタル的に有益で、小さく実行できる行動を優先
-- 予定タスク（課題/バイト）とセルフケアを混ぜてよい
-- memory_summary は会話の重要なポイントを1行で
-- {$completeRule}
-- tasks_to_complete は常に空[]にする（タスク完了は別途判定）
-- 返答は自然な形で語尾ににゃをつける
-
-PROMPT;
-    }
 }

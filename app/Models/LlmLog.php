@@ -8,6 +8,7 @@ class LlmLog extends Model
 {
     protected $fillable = [
         'user_id',
+        'chat_message_id',
         'model',
         'prompt_version',
         'tokens_in',
@@ -16,10 +17,12 @@ class LlmLog extends Model
         'latency_ms',
         'ok',
         'error_message',
+        'feedback',
     ];
 
     protected $casts = [
-        'ok' => 'boolean',
+        'ok'       => 'boolean',
+        'feedback' => 'boolean',
         'cost_estimate' => 'decimal:6',
     ];
 }

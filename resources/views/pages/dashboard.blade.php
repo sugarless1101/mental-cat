@@ -8,7 +8,7 @@
                 <a href="{{ route('home') }}" class="text-sm px-3 py-1.5 rounded-md border border-white/20 bg-white/5 hover:bg-white/10 transition">メインページへ戻る</a>
                 <form method="POST" action="{{ route('logout') }}">
                     @csrf
-                    <button class="text-sm">ログアウト</button>
+                    <button class="text-sm px-3 py-1.5 rounded-md border border-white/20 bg-white/5 hover:bg-white/10 transition">ログアウト</button>
                 </form>
             </div>
         </header>
@@ -46,7 +46,10 @@
                     @if ($tasks->count() > 0)
                         <ul class="space-y-2">
                             @foreach ($tasks as $task)
-                                <li class="flex items-start"><span class="text-gray-300">{{ $task->title }}</span></li>
+                                <li class="flex items-center gap-2">
+                                    <span class="w-4 h-4 flex-shrink-0 rounded border border-white/30 inline-block"></span>
+                                    <span class="text-gray-300 text-sm">{{ $task->title }}</span>
+                                </li>
                             @endforeach
                         </ul>
                     @else
@@ -56,11 +59,18 @@
 
                 <div class="bg-white/5 border border-white/10 rounded-lg shadow p-6">
                     <h2 class="text-xl font-semibold mb-4">最近完了</h2>
-                    <ul class="space-y-1 text-sm text-gray-400">
-                        @foreach($doneRecent as $d)
-                            <li>{{ $d->title }}</li>
-                        @endforeach
-                    </ul>
+                    @if($doneRecent->count() > 0)
+                        <ul class="space-y-2">
+                            @foreach($doneRecent as $d)
+                                <li class="flex items-center gap-2 text-sm text-gray-400">
+                                    <span class="w-4 h-4 flex-shrink-0 rounded border border-white/30 bg-accent/20 flex items-center justify-center text-xs text-accent">✓</span>
+                                    <span class="line-through opacity-70">{{ $d->title }}</span>
+                                </li>
+                            @endforeach
+                        </ul>
+                    @else
+                        <p class="text-gray-400 text-sm">まだ完了したタスクがありません。</p>
+                    @endif
                 </div>
             </aside>
 

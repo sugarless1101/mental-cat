@@ -58,6 +58,43 @@
   .task_list {
     z-index: 10;
   }
+  /* Cat animation states */
+  #cat {
+    pointer-events: none;
+    line-height: 1;
+    transition: opacity 0.7s ease, filter 0.5s ease;
+  }
+  #cat.cat--idle {
+    animation: cat-idle 3s ease-in-out infinite;
+  }
+  @keyframes cat-idle {
+    0%, 100% { transform: translateY(0); }
+    50%       { transform: translateY(-8px); }
+  }
+  #cat.cat--happy {
+    animation: cat-happy 0.6s ease-in-out infinite alternate;
+    filter: drop-shadow(0 0 12px rgba(255, 220, 80, 0.7));
+  }
+  @keyframes cat-happy {
+    from { transform: translateY(0) rotate(-6deg) scale(1); }
+    to   { transform: translateY(-12px) rotate(6deg) scale(1.1); }
+  }
+  #cat.cat--sad {
+    animation: cat-sad 2.5s ease-in-out infinite;
+    filter: drop-shadow(0 0 10px rgba(100, 140, 255, 0.5));
+  }
+  @keyframes cat-sad {
+    0%, 100% { transform: translateY(0) rotate(-3deg); }
+    50%       { transform: translateY(4px) rotate(3deg); }
+  }
+  #cat.cat--calm {
+    animation: cat-calm 4s ease-in-out infinite;
+    filter: drop-shadow(0 0 10px rgba(140, 210, 170, 0.5));
+  }
+  @keyframes cat-calm {
+    0%, 100% { transform: translateY(0) scale(1); }
+    50%       { transform: translateY(-5px) scale(1.04); }
+  }
 </style>
 
 <div id="bg-circle-layer" class="bg-circle-layer" aria-hidden="true"></div>
@@ -85,7 +122,7 @@
 </header>
 
 <main class="relative z-10 flex flex-1 justify-center items-center p-4">
-  <div class="task_list absolute left-8 top-1/2 -translate-y-1/2 w-1/5 bg-white/5 rounded-xl p-4 text-sm text-gray-300 shadow-md border border-white/10">
+  <div class="task_list hidden md:block absolute left-8 top-1/2 -translate-y-1/2 w-1/5 bg-white/5 rounded-xl p-4 text-sm text-gray-300 shadow-md border border-white/10">
     <p class="text-accent mb-3 font-semibold tracking-widest">TASK</p>
     <ul id="task-items" class="space-y-3">
       <li class="flex justify-between items-center">
@@ -106,7 +143,9 @@
     </div>
   </div>
 
-  <div class="recommend_list absolute right-8 top-1/2 -translate-y-1/2 w-1/4 text-center bg-white/5 rounded-xl p-4 shadow-md border border-white/10">
+  <div id="cat" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center cat--idle" style="font-size:5rem; opacity:0; z-index:5;" aria-hidden="true">🐱</div>
+
+  <div class="recommend_list hidden md:block absolute right-8 top-1/2 -translate-y-1/2 w-1/4 text-center bg-white/5 rounded-xl p-4 shadow-md border border-white/10">
     <ul class="space-y-4">
       <li>
         <iframe class="rounded-lg shadow-sm" width="100%" height="200"
@@ -123,7 +162,7 @@
   </div>
 </main>
 
-<div class="chat fixed z-10 bottom-4 left-1/2 -translate-x-1/2 w-3/4 max-w-2xl bg-white/5 rounded-xl p-3 border border-white/10 backdrop-blur-md">
+<div class="chat fixed z-10 bottom-4 left-1/2 -translate-x-1/2 w-[92%] md:w-3/4 max-w-2xl bg-white/5 rounded-xl p-3 border border-white/10 backdrop-blur-md">
   <div id="chat-box" class="h-56 overflow-y-auto mb-3 space-y-2 pr-1"></div>
   <form id="chat-form" class="flex items-center gap-3">
     <input id="message" type="text" placeholder="猫に話しかけてみて"
@@ -138,6 +177,7 @@ const API_CHAT = IS_AUTH ? "{{ route('app.chat.store') }}" : "{{ route('api.chat
 const API_CHAT_STATE = IS_AUTH ? "{{ route('app.chat.state') }}" : "{{ route('api.chat.state') }}";
 const API_MOOD = "{{ route('api.mood_log.store') }}";
 const API_TASK_BASE = "{{ url('/app/tasks') }}";
+const API_FEEDBACK = IS_AUTH ? "{{ route('app.feedback.store') }}" : null;
 
 const chatBox = document.getElementById('chat-box');
 const form = document.getElementById('chat-form');
@@ -145,20 +185,65 @@ const input = document.getElementById('message');
 const sendBtn = document.getElementById('send-btn');
 const moodPanel = document.getElementById('mood-panel');
 const taskItems = document.getElementById('task-items');
+const catEl = document.getElementById('cat');
 
 let currentMood = null;
 let taskState = [];
 let pendingTaskConfirm = null;
 
-function addBubble(text, side = 'left') {
+function updateCatState(moodGuess) {
+  if (!catEl) return;
+  catEl.classList.remove('cat--idle', 'cat--happy', 'cat--sad', 'cat--calm');
+  const stateMap = { good: 'cat--happy', bad: 'cat--sad', neutral: 'cat--calm' };
+  catEl.classList.add(stateMap[moodGuess] ?? 'cat--idle');
+}
+
+function showCat(initialMood) {
+  if (!catEl) return;
+  catEl.style.opacity = '1';
+  updateCatState(initialMood);
+}
+
+function addBubble(text, side = 'left', chatMessageId = null) {
   const wrap = document.createElement('div');
   wrap.className = side === 'right' ? 'text-right' : 'text-left';
   const bubble = document.createElement('span');
   bubble.className = 'inline-block max-w-[85%] px-3 py-2 rounded-lg whitespace-pre-line ' + (side === 'right' ? 'bg-white/20 border border-white/20' : 'bg-black/30 border border-white/10');
   bubble.textContent = text;
   wrap.appendChild(bubble);
+
+  // 猫の返答 + ログイン済み + chat_message_id あり → フィードバックボタン表示
+  if (side === 'left' && IS_AUTH && chatMessageId && API_FEEDBACK) {
+    const fbWrap = document.createElement('div');
+    fbWrap.className = 'mt-1 flex gap-2';
+    fbWrap.dataset.fbId = chatMessageId;
+    ['good', 'bad'].forEach(v => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = v === 'good' ? '👍' : '👎';
+      btn.className = 'text-xs opacity-40 hover:opacity-100 transition fb-btn';
+      btn.dataset.value = v;
+      btn.addEventListener('click', () => submitFeedback(chatMessageId, v, fbWrap));
+      fbWrap.appendChild(btn);
+    });
+    wrap.appendChild(fbWrap);
+  }
+
   chatBox.appendChild(wrap);
   chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+async function submitFeedback(chatMessageId, value, fbWrap) {
+  try {
+    const token = document.querySelector('meta[name="csrf-token"]')?.content || '';
+    await fetch(API_FEEDBACK, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': token},
+      body: JSON.stringify({chat_message_id: chatMessageId, value}),
+    });
+    // ボタンを送信済み表示に変える
+    fbWrap.innerHTML = '<span class="text-xs opacity-50">' + (value === 'good' ? '👍 ありがとう' : '👎 了解') + '</span>';
+  } catch {}
 }
 
 let typingEl = null;
@@ -415,7 +500,7 @@ async function sendChatMessage(message, mood, showRecommendation = false) {
     try { data = JSON.parse(raw); } catch {}
     hideTyping();
     if (res.ok && data && typeof data.reply === 'string') {
-      addBubble(data.reply, 'left');
+      addBubble(data.reply, 'left', data.chat_message_id ?? null);
       if (showRecommendation && typeof data.recommendation_message === 'string' && data.recommendation_message.trim()) {
         addBubble(data.recommendation_message, 'left');
       }
@@ -425,6 +510,7 @@ async function sendChatMessage(message, mood, showRecommendation = false) {
         mergeTaskStateFromPayload(data, false);
       }
       if (data.bgm_key) updateBgm(data.bgm_key);
+      if (data.mood_guess) updateCatState(data.mood_guess);
     } else {
       addBubble('サーバーから正しい返事が来なかったにゃ。', 'left');
     }
@@ -441,6 +527,7 @@ function setMood(mood) {
   currentMood = mood;
   localStorage.setItem('cc_mood', mood);
   moodPanel.classList.add('small');
+  showCat(mood);
   sendChatMessage('__start__', mood, true);
   if (IS_AUTH) {
     const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
