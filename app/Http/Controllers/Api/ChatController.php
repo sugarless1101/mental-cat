@@ -93,6 +93,18 @@ class ChatController extends Controller
                             'mood' => $mood,
                         ]);
                     }
+                } else {
+                    // Regular chat: save AI-suggested tasks without replacing existing ones.
+                    $taskTitlesToAdd = $this->buildTaskTitlesToAdd($json, $mood, false);
+                    foreach ($taskTitlesToAdd as $title) {
+                        Task::create([
+                            'user_id' => $user->id,
+                            'title' => $title,
+                            'status' => 'todo',
+                            'source' => 'ai',
+                            'chat_message_id' => $assistantMsg->id,
+                        ]);
+                    }
                 }
 
                 return response()->json(array_merge([

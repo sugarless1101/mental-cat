@@ -36,6 +36,22 @@
     border-radius: 0.5rem;
     pointer-events: auto;
   }
+  #mood-panel.small {
+    position: absolute;
+    left: 2rem;
+    top: 6rem;
+    transform: scale(0.75);
+    transform-origin: left top;
+    transition: all .4s ease;
+    z-index: 10;
+  }
+  #mood-panel.small ul {
+    flex-direction: row;
+    gap: .75rem;
+  }
+  #mood-panel.small .cat-caption {
+    display: none;
+  }
   #mood-panel.small ul li button {
     padding: 0.5rem 0.75rem;
   }
@@ -390,6 +406,8 @@ async function sendChatMessage(message, mood, showRecommendation = false) {
       }
       if (showRecommendation) {
         mergeTaskStateFromPayload(data, true);
+      } else if (data?.tasks?.todo?.length) {
+        mergeTaskStateFromPayload(data, false);
       }
     } else {
       addBubble('サーバーから正しい返事が来なかったにゃ。', 'left');

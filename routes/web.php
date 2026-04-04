@@ -3,7 +3,6 @@
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\MainPageController;
 use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\CatController;
 use Illuminate\Support\Facades\Route;
 
 // 公開ルート：猫UI（認証不要）

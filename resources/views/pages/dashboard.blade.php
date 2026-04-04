@@ -100,10 +100,7 @@
                         <div class="space-y-2 max-h-80 overflow-y-auto text-sm text-gray-300">
                             @foreach($moodLogs as $log)
                                 <div class="flex items-center justify-between border-b border-white/10 py-2">
-                                    <div>
-                                        <div class="font-medium">@if($log->user) {{ $log->user->name }} @else 不明 @endif</div>
-                                        <div class="text-xs text-gray-400">{{ $log->logged_at->timezone('Asia/Tokyo')->format('Y/m/d H:i') }}</div>
-                                    </div>
+                                    <div class="text-xs text-gray-400">{{ $log->logged_at->timezone('Asia/Tokyo')->format('Y/m/d H:i') }}</div>
                                     <div class="text-lg font-semibold">
                                         @switch($log->mood)
                                             @case('good') 😊 @break

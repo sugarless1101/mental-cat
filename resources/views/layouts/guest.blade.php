@@ -27,28 +27,6 @@
       },
     };
   </script>
-    <style>
-        #mood-panel.small{
-            position:absolute;
-            left: 2rem;      /* ← ここで左寄せ位置を調整 */
-            top: 6rem;       /* ← 上下位置。task_listの少し上/横などに合わせて */
-            transform:scale(0.75);
-            transform-origin: left top; /* ← 左上を基点に縮小 */
-            transition: all .4s ease;
-            z-index: 10;     /* 他要素に埋もれないように */
-        }
-
-        /* 小さくなっても横並びのまま */
-        #mood-panel.small ul{
-            flex-direction: row;  /* ← columnにしていたのをrowに戻す */
-            gap: .75rem;
-        }
-
-        /* 小さくなった時はキャプションを隠す */
-        #mood-panel.small .cat-caption{
-            display:none;
-        }
-    </style>
 
 </head>
 
