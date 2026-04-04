@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\ChatMessage;
+use App\Models\LlmLog;
 use App\Models\User;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -23,14 +24,14 @@ class MemoryCompactionService
 
     public function compact(User $user): void
     {
-        $this->compactMessages($user);
-        $this->compactSummaries($user);
+        $this->compactMessages($user, $user->id);
+        $this->compactSummaries($user, $user->id);
     }
 
     /**
      * chat_messages が 50件超 → 古い 30件を要約して memory_summary に保存・削除
      */
-    private function compactMessages(User $user): void
+    private function compactMessages(User $user, ?int $userId = null): void
     {
         $total = $user->chatMessages()->count();
         if ($total <= self::MESSAGE_THRESHOLD) {
@@ -49,7 +50,7 @@ class MemoryCompactionService
         $text = $oldest->map(fn ($m) => ($m->role === 'user' ? 'ユーザー' : '猫').': '.$m->content)
             ->implode("\n");
 
-        $summary = $this->summarize($text);
+        $summary = $this->summarize($text, $userId);
         if (! $summary) {
             Log::warning('MemoryCompactionService: summarize failed for user', ['user_id' => $user->id]);
 
@@ -78,7 +79,7 @@ class MemoryCompactionService
     /**
      * memory_summary が 10件超 → 古い 5件を再要約して 1件に置換
      */
-    private function compactSummaries(User $user): void
+    private function compactSummaries(User $user, ?int $userId = null): void
     {
         $summaries = $user->chatMessages()
             ->whereNotNull('memory_summary')
@@ -92,7 +93,7 @@ class MemoryCompactionService
         $oldest = $summaries->take(self::SUMMARY_COMPACT);
         $text = $oldest->pluck('memory_summary')->implode("\n");
 
-        $merged = $this->summarize($text);
+        $merged = $this->summarize($text, $userId);
         if (! $merged) {
             Log::warning('MemoryCompactionService: summary merge failed for user', ['user_id' => $user->id]);
 
@@ -118,12 +119,14 @@ class MemoryCompactionService
         ]);
     }
 
-    private function summarize(string $text): ?string
+    private function summarize(string $text, ?int $userId = null): ?string
     {
         $apiKey = config('services.openai.key');
         if (! $apiKey) {
             return null;
         }
+
+        $startedAt = microtime(true);
 
         try {
             $response = Http::withHeaders(['Authorization' => "Bearer {$apiKey}"])
@@ -145,9 +148,46 @@ class MemoryCompactionService
                 ])
                 ->throw();
 
+            $latencyMs = (int) ((microtime(true) - $startedAt) * 1000);
+            $tokensIn = $response->json('usage.prompt_tokens') ?? 0;
+            $tokensOut = $response->json('usage.completion_tokens') ?? 0;
+
+            // コンパクション呼び出しも llm_logs に記録（コスト可観測性）
+            try {
+                LlmLog::create([
+                    'user_id' => $userId,
+                    'model' => 'gpt-4o',
+                    'prompt_version' => 'compaction-v1',
+                    'tokens_in' => $tokensIn,
+                    'tokens_out' => $tokensOut,
+                    'cost_estimate' => ($tokensIn * 0.0000025) + ($tokensOut * 0.00001),
+                    'latency_ms' => $latencyMs,
+                    'ok' => true,
+                ]);
+            } catch (\Exception $e) {
+                Log::warning('MemoryCompactionService: failed to write LlmLog', ['message' => $e->getMessage()]);
+            }
+
             return $response->json('choices.0.message.content') ?? null;
         } catch (\Exception $e) {
+            $latencyMs = (int) ((microtime(true) - $startedAt) * 1000);
             Log::error('MemoryCompactionService: OpenAI call failed', ['message' => $e->getMessage()]);
+
+            try {
+                LlmLog::create([
+                    'user_id' => $userId,
+                    'model' => 'gpt-4o',
+                    'prompt_version' => 'compaction-v1',
+                    'tokens_in' => 0,
+                    'tokens_out' => 0,
+                    'cost_estimate' => 0,
+                    'latency_ms' => $latencyMs,
+                    'ok' => false,
+                    'error_message' => 'compaction failed: '.$e->getMessage(),
+                ]);
+            } catch (\Exception $logEx) {
+                Log::warning('MemoryCompactionService: failed to write error LlmLog', ['message' => $logEx->getMessage()]);
+            }
 
             return null;
         }
