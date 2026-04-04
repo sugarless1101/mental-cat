@@ -37,12 +37,14 @@ class ChatController extends Controller
         $mood = $this->normalizeMood($request->input('mood'));
         $aiMessage = $this->buildAiMessage($message, $mood);
 
+        $isStart = $message === '__start__';
+
         try {
             if (! $user) {
-                return $this->handleGuestRequest($aiMessage, $mood);
+                return $this->handleGuestRequest($aiMessage, $mood, $isStart);
             }
 
-            $response = DB::transaction(function () use ($user, $message, $mood, $aiMessage) {
+            $response = DB::transaction(function () use ($user, $message, $mood, $aiMessage, $isStart) {
                 ChatMessage::create([
                     'user_id' => $user->id,
                     'role' => 'user',
@@ -80,23 +82,10 @@ class ChatController extends Controller
                 }
 
                 $recommendationMessage = null;
-                if ($message === '__start__') {
-                    // Replace previous pending tasks with the new recommendation set.
-                    Task::where('user_id', $user->id)
-                        ->where('status', 'todo')
-                        ->delete();
-
+                if ($isStart) {
+                    // FINAL.md: 気分選択時の tasks_to_add は TaskWidget のみ・DB保存なし。
+                    // 既存 todo タスクは一切削除しない。
                     $taskTitlesToAdd = $this->buildTaskTitlesToAdd($json, $mood, true);
-                    foreach ($taskTitlesToAdd as $title) {
-                        Task::create([
-                            'user_id' => $user->id,
-                            'title' => $title,
-                            'status' => 'todo',
-                            'source' => 'ai',
-                            'chat_message_id' => $assistantMsg->id,
-                        ]);
-                    }
-
                     $recommendationMessage = $this->buildRecommendationMessage($taskTitlesToAdd);
                     if ($recommendationMessage) {
                         ChatMessage::create([
@@ -106,6 +95,26 @@ class ChatController extends Controller
                             'mood' => $mood,
                         ]);
                     }
+
+                    $suggestedTodos = collect($taskTitlesToAdd)->map(fn ($title) => [
+                        'id' => null,
+                        'title' => $title,
+                        'status' => 'todo',
+                    ])->values();
+
+                    return response()->json([
+                        'ok' => true,
+                        'reply' => $assistantMsg->content,
+                        'chat_message_id' => $assistantMsg->id,
+                        'recommendation_message' => $recommendationMessage,
+                        'mood_guess' => $json['mood_guess'] ?? null,
+                        'bgm_key' => $json['bgm_key'] ?? null,
+                        'tasks' => [
+                            'todo' => $suggestedTodos,
+                            'done_recent' => [],
+                        ],
+                        'messages' => [],
+                    ], 200);
                 } else {
                     // Regular chat: save AI-suggested tasks without replacing existing ones.
                     $taskTitlesToAdd = $this->buildTaskTitlesToAdd($json, $mood, false);
@@ -124,18 +133,20 @@ class ChatController extends Controller
                     'ok' => true,
                     'reply' => $assistantMsg->content,
                     'chat_message_id' => $assistantMsg->id,
-                    'recommendation_message' => $recommendationMessage,
+                    'recommendation_message' => null,
                     'mood_guess' => $json['mood_guess'] ?? null,
                     'bgm_key' => $json['bgm_key'] ?? null,
                 ], $this->buildStatePayload($user)), 200);
             });
 
-            // メモリコンパクション（50件超で非同期的に圧縮）
-            try {
-                $this->compactor->compact($user);
-            } catch (\Throwable $e) {
-                Log::warning('MemoryCompaction failed', ['message' => $e->getMessage()]);
-            }
+            // メモリコンパクション: レスポンス送信後に実行してユーザーを待たせない
+            app()->terminating(function () use ($user): void {
+                try {
+                    (new MemoryCompactionService)->compact($user);
+                } catch (\Throwable $e) {
+                    Log::warning('MemoryCompaction failed', ['message' => $e->getMessage()]);
+                }
+            });
 
             return $response;
         } catch (\Throwable $e) {
@@ -168,7 +179,7 @@ class ChatController extends Controller
         ], $this->buildStatePayload($user)), 200);
     }
 
-    private function handleGuestRequest(string $message, ?string $mood): JsonResponse
+    private function handleGuestRequest(string $message, ?string $mood, bool $isStart = false): JsonResponse
     {
         try {
             $simpleContext = $this->appendMoodContext("ユーザーメッセージ: {$message}", $mood);
@@ -179,8 +190,8 @@ class ChatController extends Controller
             }
 
             $json = $aiResponse['json'] ?? [];
-            $taskTitlesToAdd = $this->buildTaskTitlesToAdd($json, $mood, $message === '__start__');
-            $recommendationMessage = $message === '__start__'
+            $taskTitlesToAdd = $this->buildTaskTitlesToAdd($json, $mood, $isStart);
+            $recommendationMessage = $isStart
                 ? $this->buildRecommendationMessage($taskTitlesToAdd)
                 : null;
 

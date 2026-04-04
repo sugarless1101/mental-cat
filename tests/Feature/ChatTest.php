@@ -77,7 +77,8 @@ it('ログイン済みユーザーのメッセージは DB に保存される', 
     ]);
 });
 
-it('__start__ メッセージで既存の todo タスクが置き換えられる', function () {
+it('__start__ メッセージで既存の todo タスクは削除されず・新規タスクもDBに保存されない', function () {
+    // FINAL.md: 気分選択時の tasks_to_add は TaskWidget のみ・DB保存なし
     $user = User::factory()->create();
     Task::factory()->create(['user_id' => $user->id, 'status' => 'todo', 'title' => '古いタスク']);
 
@@ -96,11 +97,18 @@ it('__start__ メッセージで既存の todo タスクが置き換えられる
     ]);
     Http::fake(['api.openai.com/*' => Http::response($body, 200)]);
 
-    $this->actingAs($user)
+    $response = $this->actingAs($user)
         ->postJson('/app/chat', ['message' => '__start__', 'mood' => 'good']);
 
-    $this->assertDatabaseMissing('tasks', ['user_id' => $user->id, 'title' => '古いタスク', 'status' => 'todo']);
-    $this->assertDatabaseHas('tasks', ['user_id' => $user->id, 'title' => '新しいタスク']);
+    // 既存タスクは削除されない
+    $this->assertDatabaseHas('tasks', ['user_id' => $user->id, 'title' => '古いタスク', 'status' => 'todo']);
+
+    // AIが提案したタスクはDBに保存されない
+    $this->assertDatabaseMissing('tasks', ['user_id' => $user->id, 'title' => '新しいタスク']);
+
+    // レスポンスには提案タスクが含まれる（TaskWidget用）
+    $response->assertJsonPath('tasks.todo.0.title', '新しいタスク');
+    $response->assertJsonPath('tasks.todo.0.id', null);
 });
 
 it('AI 失敗時はフォールバックレスポンスが返る', function () {
