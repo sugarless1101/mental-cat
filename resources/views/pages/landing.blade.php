@@ -312,7 +312,7 @@ function parseMessageState(payload) {
       role: message?.role === 'user' ? 'user' : 'assistant',
       content: sanitizeTaskTitle(message?.content),
     }))
-    .filter((message) => message.content && message.content !== '__start__')
+    .filter((message) => message.content && message.content !== '__start__' && !message.content.startsWith('[記憶'))
     .slice(-30);
 }
 

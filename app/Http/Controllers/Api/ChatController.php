@@ -322,6 +322,7 @@ class ChatController extends Controller
 
         $latestMessages = $user->chatMessages()
             ->where('content', '!=', '__start__')
+            ->where('content', 'not like', '[記憶%')
             ->latest('created_at')
             ->limit(30)
             ->get()
