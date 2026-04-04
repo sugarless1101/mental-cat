@@ -44,16 +44,20 @@
                 <div class="bg-white/5 border border-white/10 rounded-lg shadow p-6">
                     <h2 class="text-xl font-semibold mb-4">To-Do</h2>
                     @if ($tasks->count() > 0)
-                        <ul class="space-y-2">
+                        <ul id="todo-list" class="space-y-2">
                             @foreach ($tasks as $task)
-                                <li class="flex items-center gap-2">
-                                    <span class="w-4 h-4 flex-shrink-0 rounded border border-white/30 inline-block"></span>
-                                    <span class="text-gray-300 text-sm">{{ $task->title }}</span>
+                                <li class="flex items-center gap-2 group" data-task-id="{{ $task->id }}">
+                                    <button
+                                        type="button"
+                                        class="task-check w-4 h-4 flex-shrink-0 rounded border border-white/30 hover:border-accent hover:bg-accent/20 transition flex items-center justify-center"
+                                        aria-label="完了にする"
+                                    ></button>
+                                    <span class="text-gray-300 text-sm task-title">{{ $task->title }}</span>
                                 </li>
                             @endforeach
                         </ul>
                     @else
-                        <p class="text-gray-400">やることがありません。</p>
+                        <p class="text-gray-400" id="todo-empty">やることがありません。</p>
                     @endif
                 </div>
 
@@ -196,9 +200,9 @@
                                 callbacks: {
                                     label: (ctx) => {
                                         const v = ctx.parsed.y;
-                                        if (v === 1) return ' good';
-                                        if (v === 0) return ' neutral';
-                                        return ' bad';
+                                        if (v === 1) return ' 😊 良い';
+                                        if (v === 0) return ' 🙂 ふつう';
+                                        return ' 😞 つらい';
                                     }
                                 }
                             }
@@ -221,9 +225,9 @@
                                     stepSize: 1,
                                     color: '#9CA3AF',
                                     callback: (value) => {
-                                        if (value === 1) return 'good';
-                                        if (value === 0) return 'neutral';
-                                        if (value === -1) return 'bad';
+                                        if (value === 1) return '😊 良い';
+                                        if (value === 0) return '🙂 ふつう';
+                                        if (value === -1) return '😞 つらい';
                                         return '';
                                     }
                                 },
@@ -237,4 +241,45 @@
             });
         </script>
     @endif
+
+    <script>
+    (function () {
+        const CSRF = document.querySelector('meta[name="csrf-token"]')?.content ?? '';
+        const BASE = '{{ url("/app/tasks") }}';
+
+        document.querySelectorAll('#todo-list .task-check').forEach(btn => {
+            btn.addEventListener('click', async function () {
+                const li = this.closest('li');
+                const taskId = li.dataset.taskId;
+                if (!taskId) return;
+
+                // 即座にUIを完了表示
+                this.textContent = '✓';
+                this.classList.add('bg-accent/20', 'border-accent', 'text-accent', 'text-xs');
+                this.disabled = true;
+                li.querySelector('.task-title')?.classList.add('line-through', 'opacity-50');
+
+                try {
+                    await fetch(`${BASE}/${taskId}/complete`, {
+                        method: 'POST',
+                        headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+                    });
+                } catch {}
+
+                // アニメーション後に行削除
+                setTimeout(() => {
+                    li.style.transition = 'opacity 0.4s';
+                    li.style.opacity = '0';
+                    setTimeout(() => {
+                        li.remove();
+                        if (!document.querySelector('#todo-list li')) {
+                            const ul = document.getElementById('todo-list');
+                            if (ul) ul.outerHTML = '<p class="text-gray-400" id="todo-empty">やることがありません。</p>';
+                        }
+                    }, 400);
+                }, 600);
+            });
+        });
+    })();
+    </script>
 @endsection
