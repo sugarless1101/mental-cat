@@ -6,27 +6,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <script>window.IS_AUTHENTICATED = @json(auth()->check());</script>
-  <script src="https://cdn.tailwindcss.com"></script>
   <title>Mental Cat Portal</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-
-  <!-- Tailwindカスタムテーマ：モノトーン＋アクセントカラー -->
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            dark: '#0A0A0A',
-            graylight: '#D1D5DB',
-            accent: '#B6A7F2',
-          },
-          fontFamily: {
-            sans: ['"Noto Sans JP"', 'sans-serif'],
-          },
-        },
-      },
-    };
-  </script>
+  @vite(['resources/css/app.css', 'resources/js/app.js'])
 
 </head>
 

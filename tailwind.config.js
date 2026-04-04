@@ -11,8 +11,13 @@ export default {
 
     theme: {
         extend: {
+            colors: {
+                dark: '#0A0A0A',
+                graylight: '#D1D5DB',
+                accent: '#B6A7F2',
+            },
             fontFamily: {
-                sans: ['Figtree', ...defaultTheme.fontFamily.sans],
+                sans: ['"Noto Sans JP"', ...defaultTheme.fontFamily.sans],
             },
         },
     },

@@ -384,6 +384,21 @@ async function handlePendingTaskConfirmation(messageText) {
   return true;
 }
 
+// BGM_MAP: bgm_key → YouTube embed URL
+const BGM_MAP = {
+  calm:    'https://www.youtube.com/embed/jfKfPfyJRdk', // Lofi Girl: beats to relax/study to
+  focus:   'https://www.youtube.com/embed/lTRiuFIWV54', // Lofi Girl: 1 A.M Study Session
+  refresh: 'https://www.youtube.com/embed/Lom67j9XqrU', // FreeBGM: good mood / refresh
+  sleep:   'https://www.youtube.com/embed/0EqhX-VTVaQ',  // FreeBGM: 静かな夜 / sleep
+};
+
+function updateBgm(bgmKey) {
+  const url = BGM_MAP[bgmKey];
+  if (!url) return;
+  const iframe = document.querySelector('.recommend_list iframe');
+  if (iframe) iframe.src = url + '?autoplay=1';
+}
+
 async function sendChatMessage(message, mood, showRecommendation = false) {
   sendBtn.disabled = true;
   sendBtn.classList.add('opacity-60', 'cursor-not-allowed');
@@ -409,6 +424,7 @@ async function sendChatMessage(message, mood, showRecommendation = false) {
       } else if (data?.tasks?.todo?.length) {
         mergeTaskStateFromPayload(data, false);
       }
+      if (data.bgm_key) updateBgm(data.bgm_key);
     } else {
       addBubble('サーバーから正しい返事が来なかったにゃ。', 'left');
     }

@@ -72,7 +72,18 @@
                             @foreach ($chatMessages as $msg)
                                 <div class="flex {{ $msg->role === 'user' ? 'justify-end' : 'justify-start' }}">
                                     <div class="max-w-xs px-4 py-2 rounded-lg {{ $msg->role === 'user' ? 'bg-white/15 border border-white/10 text-gray-200' : 'bg-black/30 border border-white/10 text-gray-200' }}">
-                                        <p class="text-sm">{{ $msg->content }}</p>
+                                        <p class="text-sm">
+                            @if($msg->content === '__start__')
+                                @switch($msg->mood)
+                                    @case('good') 😊 気分を選択 @break
+                                    @case('neutral') 🙂 気分を選択 @break
+                                    @case('bad') 😞 気分を選択 @break
+                                    @default 🐱 気分を選択 @break
+                                @endswitch
+                            @else
+                                {{ $msg->content }}
+                            @endif
+                        </p>
                                         <p class="text-xs mt-1 opacity-70">{{ $msg->created_at->timezone('Asia/Tokyo')->format('H:i') }}</p>
                                     </div>
                                 </div>
@@ -134,9 +145,8 @@
                 };
             });
         @endphp
-        <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
         <script>
-            (() => {
+            window.addEventListener('load', () => {
                 const canvas = document.getElementById('mood-line-chart');
                 if (!canvas || typeof Chart === 'undefined') return;
 
@@ -214,7 +224,7 @@
                         }
                     }
                 });
-            })();
+            });
         </script>
     @endif
 @endsection
