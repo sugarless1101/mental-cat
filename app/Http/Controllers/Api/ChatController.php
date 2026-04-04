@@ -7,6 +7,7 @@ use App\Http\Requests\ChatStoreRequest;
 use App\Models\ChatMessage;
 use App\Models\Task;
 use App\Services\ChatContextBuilder;
+use App\Services\MemoryCompactionService;
 use App\Services\MentalCatAiService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -17,11 +18,13 @@ class ChatController extends Controller
 {
     private ChatContextBuilder $contextBuilder;
     private MentalCatAiService $aiService;
+    private MemoryCompactionService $compactor;
 
     public function __construct()
     {
         $this->contextBuilder = new ChatContextBuilder();
         $this->aiService = new MentalCatAiService();
+        $this->compactor = new MemoryCompactionService();
     }
 
     public function store(ChatStoreRequest $request): JsonResponse
@@ -36,7 +39,7 @@ class ChatController extends Controller
                 return $this->handleGuestRequest($aiMessage, $mood);
             }
 
-            return DB::transaction(function () use ($user, $message, $mood, $aiMessage) {
+            $response = DB::transaction(function () use ($user, $message, $mood, $aiMessage) {
                 ChatMessage::create([
                     'user_id' => $user->id,
                     'role' => 'user',
@@ -50,7 +53,7 @@ class ChatController extends Controller
                 );
 
                 // Task completion is handled by explicit UI confirmation flow.
-                $aiResponse = $this->aiService->makeResponse($aiMessage, $contextText, false);
+                $aiResponse = $this->aiService->makeResponse($aiMessage, $contextText, false, $user->id);
 
                 if (!$aiResponse['ok']) {
                     Log::warning('AI response failed', ['error' => $aiResponse['error']]);
@@ -115,6 +118,15 @@ class ChatController extends Controller
                     'bgm_key' => $json['bgm_key'] ?? null,
                 ], $this->buildStatePayload($user)), 200);
             });
+
+            // メモリコンパクション（50件超で非同期的に圧縮）
+            try {
+                $this->compactor->compact($user);
+            } catch (\Throwable $e) {
+                Log::warning('MemoryCompaction failed', ['message' => $e->getMessage()]);
+            }
+
+            return $response;
         } catch (\Throwable $e) {
             Log::error('ChatController@store error', [
                 'message' => $e->getMessage(),
