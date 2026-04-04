@@ -3,8 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Task;
-use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class TaskController extends Controller
 {
@@ -15,7 +15,7 @@ class TaskController extends Controller
     {
         $user = $request->user();
 
-        if (!$user || $task->user_id !== $user->id) {
+        if (! $user || $task->user_id !== $user->id) {
             return response()->json(['ok' => false, 'message' => 'Unauthorized'], 403);
         }
 

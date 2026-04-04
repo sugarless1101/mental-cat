@@ -1,9 +1,13 @@
 <?php
 
 use App\Http\Controllers\AdminController;
-use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\MainPageController;
+use App\Http\Controllers\Api\ChatController;
+use App\Http\Controllers\Api\FeedbackController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\MainPageController;
+use App\Http\Controllers\MoodController;
+use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\TaskController;
 use Illuminate\Support\Facades\Route;
 
 // 公開ルート：猫UI（認証不要）
@@ -13,26 +17,26 @@ Route::get('/', [MainPageController::class, 'index'])->name('home');
 Route::get('/app', [DashboardController::class, 'index'])->middleware(['auth', 'verified'])->name('app');
 
 // チャット（セッション認証で叩く用）
-Route::post('/app/chat', [\App\Http\Controllers\Api\ChatController::class, 'store'])
+Route::post('/app/chat', [ChatController::class, 'store'])
     ->middleware(['auth'])
     ->name('app.chat.store');
 
-Route::get('/app/chat/state', [\App\Http\Controllers\Api\ChatController::class, 'state'])
+Route::get('/app/chat/state', [ChatController::class, 'state'])
     ->middleware(['auth'])
     ->name('app.chat.state');
 
 // タスク手動完了（confirm -> APIで完了）
-Route::post('/app/tasks/{task}/complete', [\App\Http\Controllers\TaskController::class, 'completeManual'])
+Route::post('/app/tasks/{task}/complete', [TaskController::class, 'completeManual'])
     ->middleware(['auth'])
     ->name('app.tasks.complete');
 
 // 気分保存（upsert）
-Route::post('/app/mood', [\App\Http\Controllers\MoodController::class, 'store'])
+Route::post('/app/mood', [MoodController::class, 'store'])
     ->middleware(['auth'])
     ->name('app.mood.store');
 
 // API形式での気分保存（フロントからfetchで叩く用・セッション認証）
-Route::post('/api/mood-log', [\App\Http\Controllers\MoodController::class, 'store'])
+Route::post('/api/mood-log', [MoodController::class, 'store'])
     ->middleware(['auth'])
     ->name('api.mood_log.store');
 
@@ -49,7 +53,7 @@ Route::middleware('auth')->group(function () {
 });
 
 // フィードバック（認証済みユーザーのみ）
-Route::post('/app/feedback', [\App\Http\Controllers\Api\FeedbackController::class, 'store'])
+Route::post('/app/feedback', [FeedbackController::class, 'store'])
     ->middleware(['auth'])
     ->name('app.feedback.store');
 

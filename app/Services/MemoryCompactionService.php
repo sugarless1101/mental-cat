@@ -10,11 +10,16 @@ use Illuminate\Support\Facades\Log;
 class MemoryCompactionService
 {
     private const MESSAGE_THRESHOLD = 50;
-    private const COMPACT_COUNT     = 30;
+
+    private const COMPACT_COUNT = 30;
+
     private const SUMMARY_THRESHOLD = 10;
-    private const SUMMARY_COMPACT   = 5;
-    private const OPENAI_API_URL    = 'https://api.openai.com/v1/chat/completions';
-    private const TIMEOUT           = 30;
+
+    private const SUMMARY_COMPACT = 5;
+
+    private const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
+
+    private const TIMEOUT = 30;
 
     public function compact(User $user): void
     {
@@ -41,27 +46,28 @@ class MemoryCompactionService
             return;
         }
 
-        $text = $oldest->map(fn ($m) => ($m->role === 'user' ? 'ユーザー' : '猫') . ': ' . $m->content)
-                       ->implode("\n");
+        $text = $oldest->map(fn ($m) => ($m->role === 'user' ? 'ユーザー' : '猫').': '.$m->content)
+            ->implode("\n");
 
         $summary = $this->summarize($text);
-        if (!$summary) {
+        if (! $summary) {
             Log::warning('MemoryCompactionService: summarize failed for user', ['user_id' => $user->id]);
+
             return;
         }
 
         // 要約を新しいアシスタントメッセージとして保存
         ChatMessage::create([
-            'user_id'        => $user->id,
-            'role'           => 'assistant',
-            'content'        => '[記憶の圧縮]',
+            'user_id' => $user->id,
+            'role' => 'assistant',
+            'content' => '[記憶の圧縮]',
             'memory_summary' => $summary,
         ]);
 
         // 圧縮した元メッセージを削除
         $user->chatMessages()
-             ->whereIn('id', $oldest->pluck('id'))
-             ->delete();
+            ->whereIn('id', $oldest->pluck('id'))
+            ->delete();
 
         Log::info('MemoryCompactionService: compacted messages', [
             'user_id' => $user->id,
@@ -84,37 +90,38 @@ class MemoryCompactionService
         }
 
         $oldest = $summaries->take(self::SUMMARY_COMPACT);
-        $text   = $oldest->pluck('memory_summary')->implode("\n");
+        $text = $oldest->pluck('memory_summary')->implode("\n");
 
         $merged = $this->summarize($text);
-        if (!$merged) {
+        if (! $merged) {
             Log::warning('MemoryCompactionService: summary merge failed for user', ['user_id' => $user->id]);
+
             return;
         }
 
         // 古い要約を削除
         $user->chatMessages()
-             ->whereIn('id', $oldest->pluck('id'))
-             ->delete();
+            ->whereIn('id', $oldest->pluck('id'))
+            ->delete();
 
         // 統合要約を保存
         ChatMessage::create([
-            'user_id'        => $user->id,
-            'role'           => 'assistant',
-            'content'        => '[記憶の統合]',
+            'user_id' => $user->id,
+            'role' => 'assistant',
+            'content' => '[記憶の統合]',
             'memory_summary' => $merged,
         ]);
 
         Log::info('MemoryCompactionService: merged summaries', [
             'user_id' => $user->id,
-            'merged'  => $oldest->count(),
+            'merged' => $oldest->count(),
         ]);
     }
 
     private function summarize(string $text): ?string
     {
         $apiKey = config('services.openai.key');
-        if (!$apiKey) {
+        if (! $apiKey) {
             return null;
         }
 
@@ -122,25 +129,26 @@ class MemoryCompactionService
             $response = Http::withHeaders(['Authorization' => "Bearer {$apiKey}"])
                 ->timeout(self::TIMEOUT)
                 ->post(self::OPENAI_API_URL, [
-                    'model'      => 'gpt-4o',
-                    'messages'   => [
+                    'model' => 'gpt-4o',
+                    'messages' => [
                         [
-                            'role'    => 'system',
+                            'role' => 'system',
                             'content' => '以下の会話履歴を100文字以内の日本語で要点をまとめてください。箇条書き不要。1文で。',
                         ],
                         [
-                            'role'    => 'user',
+                            'role' => 'user',
                             'content' => $text,
                         ],
                     ],
                     'temperature' => 0.3,
-                    'max_tokens'  => 150,
+                    'max_tokens' => 150,
                 ])
                 ->throw();
 
             return $response->json('choices.0.message.content') ?? null;
         } catch (\Exception $e) {
             Log::error('MemoryCompactionService: OpenAI call failed', ['message' => $e->getMessage()]);
+
             return null;
         }
     }

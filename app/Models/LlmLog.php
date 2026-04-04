@@ -21,7 +21,7 @@ class LlmLog extends Model
     ];
 
     protected $casts = [
-        'ok'       => 'boolean',
+        'ok' => 'boolean',
         'feedback' => 'boolean',
         'cost_estimate' => 'decimal:6',
     ];

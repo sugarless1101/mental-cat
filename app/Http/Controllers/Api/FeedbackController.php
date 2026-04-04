@@ -17,7 +17,7 @@ class FeedbackController extends Controller
     {
         $request->validate([
             'chat_message_id' => ['required', 'integer'],
-            'value'           => ['required', 'in:good,bad'],
+            'value' => ['required', 'in:good,bad'],
         ]);
 
         $user = $request->user();
@@ -26,7 +26,7 @@ class FeedbackController extends Controller
             ->when($user, fn ($q) => $q->where('user_id', $user->id))
             ->first();
 
-        if (!$log) {
+        if (! $log) {
             return response()->json(['ok' => false, 'message' => 'Not found'], 404);
         }
 

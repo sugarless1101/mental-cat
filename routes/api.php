@@ -1,8 +1,8 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\FeedbackController;
+use Illuminate\Support\Facades\Route;
 
 // 疎通確認（必要なければ後で消してOK）
 Route::get('/ping', fn () => response()->json(['ok' => true]));

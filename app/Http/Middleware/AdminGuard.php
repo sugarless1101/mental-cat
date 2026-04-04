@@ -9,7 +9,7 @@ class AdminGuard
 {
     public function handle(Request $request, Closure $next): mixed
     {
-        if (!app()->environment('local')) {
+        if (! app()->environment('local')) {
             $secret = env('APP_ADMIN_SECRET');
             if (empty($secret) || $request->header('X-Admin-Secret') !== $secret) {
                 abort(403);

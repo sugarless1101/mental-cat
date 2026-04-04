@@ -17,7 +17,7 @@ return new class extends Migration
             $table->enum('mood', ['good', 'neutral', 'bad']);
             $table->dateTime('logged_at')->useCurrent();
             $table->timestamps();
-            
+
             $table->index('user_id');
             $table->index('logged_at');
         });

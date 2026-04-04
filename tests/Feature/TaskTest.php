@@ -1,7 +1,7 @@
 <?php
 
-use App\Models\User;
 use App\Models\Task;
+use App\Models\User;
 
 it('ログイン済みユーザーが自分のタスクを完了できる', function () {
     $user = User::factory()->create();

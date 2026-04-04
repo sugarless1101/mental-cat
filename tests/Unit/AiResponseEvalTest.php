@@ -6,14 +6,14 @@ use App\Services\MentalCatAiService;
 function validResponse(): array
 {
     return [
-        'reply'             => 'テストにゃ。',
-        'mood_guess'        => 'neutral',
-        'memory_summary'    => 'テスト会話',
-        'tasks_to_add'      => [
+        'reply' => 'テストにゃ。',
+        'mood_guess' => 'neutral',
+        'memory_summary' => 'テスト会話',
+        'tasks_to_add' => [
             ['title' => 'お水を飲む', 'reason' => 'hydration'],
         ],
         'tasks_to_complete' => [],
-        'bgm_key'           => 'calm',
+        'bgm_key' => 'calm',
     ];
 }
 

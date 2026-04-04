@@ -3,13 +3,14 @@
 namespace App\Services;
 
 use App\Models\LlmLog;
-use App\Services\PromptRepository;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class MentalCatAiService
 {
     private const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
+
     private const TIMEOUT = 30;
     // PROMPT_VERSION は PromptRepository で管理
 
@@ -19,7 +20,7 @@ class MentalCatAiService
     {
         $this->apiKey = config('services.openai.key');
 
-        if (!$this->apiKey) {
+        if (! $this->apiKey) {
             throw new \RuntimeException('OpenAI API key is not configured');
         }
     }
@@ -27,10 +28,10 @@ class MentalCatAiService
     /**
      * Make a response from OpenAI based on user message and context.
      *
-     * @param string   $userMessage        User's message
-     * @param string   $contextText        Context (long-term summary, recent messages, tasks)
-     * @param bool     $allowTaskCompletion Whether to allow tasks_to_complete
-     * @param int|null $userId             Authenticated user ID for logging (null = guest)
+     * @param  string  $userMessage  User's message
+     * @param  string  $contextText  Context (long-term summary, recent messages, tasks)
+     * @param  bool  $allowTaskCompletion  Whether to allow tasks_to_complete
+     * @param  int|null  $userId  Authenticated user ID for logging (null = guest)
      * @return array { ok: bool, reply?: string, json?: array, error?: string }
      */
     public function makeResponse(
@@ -45,11 +46,11 @@ class MentalCatAiService
 
         $messages = [
             [
-                'role'    => 'system',
+                'role' => 'system',
                 'content' => $systemPrompt,
             ],
             [
-                'role'    => 'user',
+                'role' => 'user',
                 'content' => "{$contextText}\n\nユーザー発言: {$userMessage}",
             ],
         ];
@@ -62,21 +63,22 @@ class MentalCatAiService
             ])
                 ->timeout(self::TIMEOUT)
                 ->post(self::OPENAI_API_URL, [
-                    'model'       => 'gpt-4o',
-                    'messages'    => $messages,
+                    'model' => 'gpt-4o',
+                    'messages' => $messages,
                     'temperature' => 0.7,
-                    'max_tokens'  => 800,
+                    'max_tokens' => 800,
                 ])
                 ->throw();
 
             $latencyMs = (int) ((microtime(true) - $startedAt) * 1000);
-            $tokensIn  = $response->json('usage.prompt_tokens') ?? 0;
+            $tokensIn = $response->json('usage.prompt_tokens') ?? 0;
             $tokensOut = $response->json('usage.completion_tokens') ?? 0;
 
             $responseText = $response->json('choices.0.message.content');
 
-            if (!$responseText) {
+            if (! $responseText) {
                 $this->writeLog($userId, $latencyMs, $tokensIn, $tokensOut, false, 'Empty response from OpenAI');
+
                 return ['ok' => false, 'error' => 'Empty response from OpenAI'];
             }
 
@@ -88,12 +90,13 @@ class MentalCatAiService
 
             // JSON パース
             $json = json_decode($cleanedText, true);
-            if (!is_array($json)) {
+            if (! is_array($json)) {
                 Log::warning('Failed to parse OpenAI response as JSON', [
                     'original_response' => $responseText,
-                    'cleaned_response'  => $cleanedText,
+                    'cleaned_response' => $cleanedText,
                 ]);
                 $this->writeLog($userId, $latencyMs, $tokensIn, $tokensOut, false, 'Invalid JSON response from AI');
+
                 return ['ok' => false, 'error' => 'Invalid JSON response from AI'];
             }
 
@@ -103,24 +106,26 @@ class MentalCatAiService
             $llmLog = $this->writeLog($userId, $latencyMs, $tokensIn, $tokensOut, true, null, $promptVersion);
 
             return [
-                'ok'         => true,
-                'reply'      => $json['reply'] ?? null,
-                'json'       => $json,
+                'ok' => true,
+                'reply' => $json['reply'] ?? null,
+                'json' => $json,
                 'llm_log_id' => $llmLog?->id,
             ];
-        } catch (\Illuminate\Http\Client\RequestException $e) {
+        } catch (RequestException $e) {
             $latencyMs = (int) ((microtime(true) - $startedAt) * 1000);
             Log::error('OpenAI API request failed', [
-                'status'  => $e->response?->status(),
+                'status' => $e->response?->status(),
                 'message' => $e->getMessage(),
             ]);
-            $this->writeLog($userId, $latencyMs, 0, 0, false, 'OpenAI API error: ' . $e->getMessage());
-            return ['ok' => false, 'error' => 'OpenAI API error: ' . $e->getMessage()];
+            $this->writeLog($userId, $latencyMs, 0, 0, false, 'OpenAI API error: '.$e->getMessage());
+
+            return ['ok' => false, 'error' => 'OpenAI API error: '.$e->getMessage()];
         } catch (\Exception $e) {
             $latencyMs = (int) ((microtime(true) - $startedAt) * 1000);
             Log::error('Unexpected error in MentalCatAiService', ['message' => $e->getMessage()]);
-            $this->writeLog($userId, $latencyMs, 0, 0, false, 'Unexpected error: ' . $e->getMessage());
-            return ['ok' => false, 'error' => 'Unexpected error: ' . $e->getMessage()];
+            $this->writeLog($userId, $latencyMs, 0, 0, false, 'Unexpected error: '.$e->getMessage());
+
+            return ['ok' => false, 'error' => 'Unexpected error: '.$e->getMessage()];
         }
     }
 
@@ -140,12 +145,12 @@ class MentalCatAiService
         }
 
         // mood_guess が3値以外 → null
-        if (!in_array($json['mood_guess'] ?? null, ['good', 'neutral', 'bad'], true)) {
+        if (! in_array($json['mood_guess'] ?? null, ['good', 'neutral', 'bad'], true)) {
             $json['mood_guess'] = null;
         }
 
         // bgm_key が4値以外 → null
-        if (!in_array($json['bgm_key'] ?? null, ['calm', 'focus', 'refresh', 'sleep'], true)) {
+        if (! in_array($json['bgm_key'] ?? null, ['calm', 'focus', 'refresh', 'sleep'], true)) {
             $json['bgm_key'] = null;
         }
 
@@ -183,21 +188,21 @@ class MentalCatAiService
     ): ?LlmLog {
         try {
             return LlmLog::create([
-                'user_id'        => $userId,
-                'model'          => 'gpt-4o',
+                'user_id' => $userId,
+                'model' => 'gpt-4o',
                 'prompt_version' => $promptVersion ?? PromptRepository::getActive()['version'],
-                'tokens_in'      => $tokensIn,
-                'tokens_out'     => $tokensOut,
-                'cost_estimate'  => ($tokensIn * 0.0000025) + ($tokensOut * 0.00001),
-                'latency_ms'     => $latencyMs,
-                'ok'             => $ok,
-                'error_message'  => $errorMessage,
+                'tokens_in' => $tokensIn,
+                'tokens_out' => $tokensOut,
+                'cost_estimate' => ($tokensIn * 0.0000025) + ($tokensOut * 0.00001),
+                'latency_ms' => $latencyMs,
+                'ok' => $ok,
+                'error_message' => $errorMessage,
             ]);
         } catch (\Exception $e) {
             // ログ保存失敗はサービス本体に影響させない
             Log::error('Failed to write LlmLog', ['message' => $e->getMessage()]);
+
             return null;
         }
     }
-
 }

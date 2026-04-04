@@ -2,17 +2,13 @@
 
 namespace App\Services;
 
-use App\Models\User;
-use App\Models\ChatMessage;
 use App\Models\Task;
+use App\Models\User;
 
 class ChatContextBuilder
 {
     /**
      * Build context text for AI prompt (following SPEC.md low-cost memory strategy)
-     *
-     * @param User $user
-     * @return string
      */
     public function build(User $user): string
     {

@@ -20,7 +20,7 @@ return new class extends Migration
             $table->foreignId('chat_message_id')->nullable()->constrained('chat_messages')->onDelete('set null');
             $table->dateTime('done_at')->nullable();
             $table->timestamps();
-            
+
             $table->index('user_id');
             $table->index('status');
             $table->index('created_at');

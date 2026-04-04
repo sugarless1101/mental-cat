@@ -19,7 +19,7 @@ return new class extends Migration
             $table->enum('mood', ['good', 'neutral', 'bad'])->nullable();
             $table->text('memory_summary')->nullable();
             $table->timestamps();
-            
+
             $table->index('user_id');
             $table->index('created_at');
         });

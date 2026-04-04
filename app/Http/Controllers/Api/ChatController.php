@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ChatStoreRequest;
 use App\Models\ChatMessage;
+use App\Models\LlmLog;
 use App\Models\Task;
 use App\Services\ChatContextBuilder;
 use App\Services\MemoryCompactionService;
@@ -17,14 +18,16 @@ use Illuminate\Support\Facades\Log;
 class ChatController extends Controller
 {
     private ChatContextBuilder $contextBuilder;
+
     private MentalCatAiService $aiService;
+
     private MemoryCompactionService $compactor;
 
     public function __construct()
     {
-        $this->contextBuilder = new ChatContextBuilder();
-        $this->aiService = new MentalCatAiService();
-        $this->compactor = new MemoryCompactionService();
+        $this->contextBuilder = new ChatContextBuilder;
+        $this->aiService = new MentalCatAiService;
+        $this->compactor = new MemoryCompactionService;
     }
 
     public function store(ChatStoreRequest $request): JsonResponse
@@ -35,7 +38,7 @@ class ChatController extends Controller
         $aiMessage = $this->buildAiMessage($message, $mood);
 
         try {
-            if (!$user) {
+            if (! $user) {
                 return $this->handleGuestRequest($aiMessage, $mood);
             }
 
@@ -55,8 +58,9 @@ class ChatController extends Controller
                 // Task completion is handled by explicit UI confirmation flow.
                 $aiResponse = $this->aiService->makeResponse($aiMessage, $contextText, false, $user->id);
 
-                if (!$aiResponse['ok']) {
+                if (! $aiResponse['ok']) {
                     Log::warning('AI response failed', ['error' => $aiResponse['error']]);
+
                     return response()->json($this->fallbackPayload(), 200);
                 }
 
@@ -70,8 +74,8 @@ class ChatController extends Controller
                 ]);
 
                 // LlmLog に chat_message_id を紐付け（フィードバックUI用）
-                if (!empty($aiResponse['llm_log_id'])) {
-                    \App\Models\LlmLog::where('id', $aiResponse['llm_log_id'])
+                if (! empty($aiResponse['llm_log_id'])) {
+                    LlmLog::where('id', $aiResponse['llm_log_id'])
                         ->update(['chat_message_id' => $assistantMsg->id]);
                 }
 
@@ -139,6 +143,7 @@ class ChatController extends Controller
                 'message' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
+
             return response()->json($this->fallbackPayload(), 200);
         }
     }
@@ -147,7 +152,7 @@ class ChatController extends Controller
     {
         $user = $request->user();
 
-        if (!$user) {
+        if (! $user) {
             return response()->json([
                 'ok' => true,
                 'tasks' => [
@@ -169,7 +174,7 @@ class ChatController extends Controller
             $simpleContext = $this->appendMoodContext("ユーザーメッセージ: {$message}", $mood);
             $aiResponse = $this->aiService->makeResponse($message, $simpleContext, false);
 
-            if (!$aiResponse['ok']) {
+            if (! $aiResponse['ok']) {
                 return response()->json($this->fallbackPayload(), 200);
             }
 
@@ -186,7 +191,7 @@ class ChatController extends Controller
                 'mood_guess' => $json['mood_guess'] ?? null,
                 'bgm_key' => $json['bgm_key'] ?? null,
                 'tasks' => [
-                    'todo' => collect($taskTitlesToAdd)->map(fn($title) => [
+                    'todo' => collect($taskTitlesToAdd)->map(fn ($title) => [
                         'id' => null,
                         'title' => $title,
                         'status' => 'todo',
@@ -197,6 +202,7 @@ class ChatController extends Controller
             ], 200);
         } catch (\Throwable $e) {
             Log::error('Guest chat error', ['message' => $e->getMessage()]);
+
             return response()->json($this->fallbackPayload(), 200);
         }
     }
@@ -218,7 +224,7 @@ class ChatController extends Controller
 
     private function normalizeMood(mixed $mood): ?string
     {
-        if (!is_string($mood)) {
+        if (! is_string($mood)) {
             return null;
         }
 
@@ -227,16 +233,16 @@ class ChatController extends Controller
 
     private function appendMoodContext(string $context, ?string $mood): string
     {
-        if (!$mood) {
+        if (! $mood) {
             return $context;
         }
 
-        return $context . "\n\n現在の気分: {$mood}";
+        return $context."\n\n現在の気分: {$mood}";
     }
 
     private function buildAiMessage(string $message, ?string $mood): string
     {
-        if ($message !== '__start__' || !$mood) {
+        if ($message !== '__start__' || ! $mood) {
             return $message;
         }
 
@@ -247,9 +253,10 @@ class ChatController extends Controller
     {
         $titles = collect(array_slice($json['tasks_to_add'] ?? [], 0, 3))
             ->map(function ($task) {
-                if (!is_array($task)) {
+                if (! is_array($task)) {
                     return '';
                 }
+
                 return trim((string) ($task['title'] ?? ''));
             })
             ->filter()
@@ -299,12 +306,12 @@ class ChatController extends Controller
         }
 
         $lines = array_values(array_map(
-            fn($title, $i) => ($i + 1) . '. ' . $title,
+            fn ($title, $i) => ($i + 1).'. '.$title,
             $titles,
             array_keys($titles)
         ));
 
-        return "気分に合ったおすすめタスクにゃ:\n" . implode("\n", $lines);
+        return "気分に合ったおすすめタスクにゃ:\n".implode("\n", $lines);
     }
 
     private function buildStatePayload($user): array
@@ -323,18 +330,18 @@ class ChatController extends Controller
 
         return [
             'tasks' => [
-                'todo' => $todo->map(fn($t) => [
+                'todo' => $todo->map(fn ($t) => [
                     'id' => $t->id,
                     'title' => $t->title,
                     'status' => $t->status,
                 ])->values(),
-                'done_recent' => $doneRecent->map(fn($t) => [
+                'done_recent' => $doneRecent->map(fn ($t) => [
                     'id' => $t->id,
                     'title' => $t->title,
                     'status' => $t->status,
                 ])->values(),
             ],
-            'messages' => $latestMessages->map(fn($m) => [
+            'messages' => $latestMessages->map(fn ($m) => [
                 'id' => $m->id,
                 'role' => $m->role,
                 'content' => $m->content,

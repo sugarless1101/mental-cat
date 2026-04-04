@@ -1,8 +1,8 @@
 <?php
 
-use App\Models\User;
-use App\Models\Task;
 use App\Models\ChatMessage;
+use App\Models\Task;
+use App\Models\User;
 use App\Services\MentalCatAiService;
 use Illuminate\Support\Facades\Http;
 

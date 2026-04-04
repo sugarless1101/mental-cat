@@ -6,7 +6,6 @@ use App\Models\ChatMessage;
 use App\Models\LlmLog;
 use App\Models\MoodLog;
 use App\Models\User;
-use Illuminate\Support\Facades\DB;
 
 class AdminController extends Controller
 {
@@ -31,10 +30,10 @@ class AdminController extends Controller
         $llmAllTime = LlmLog::selectRaw('COUNT(*) as total_calls, SUM(cost_estimate) as total_cost')->first();
 
         // ユーザー概況
-        $totalUsers      = User::count();
-        $todayActive     = ChatMessage::whereDate('created_at', today())
+        $totalUsers = User::count();
+        $todayActive = ChatMessage::whereDate('created_at', today())
             ->distinct('user_id')->count('user_id');
-        $totalMoodLogs   = MoodLog::count();
+        $totalMoodLogs = MoodLog::count();
 
         return view('pages.admin', compact(
             'llmStats',
