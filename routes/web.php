@@ -17,8 +17,9 @@ Route::get('/', [MainPageController::class, 'index'])->name('home');
 Route::get('/app', [DashboardController::class, 'index'])->middleware(['auth', 'verified'])->name('app');
 
 // チャット（セッション認証で叩く用）
+// レートリミット: 認証済みユーザーは1分あたり30回（ゲスト /api/chat は api.php で別途制限）
 Route::post('/app/chat', [ChatController::class, 'store'])
-    ->middleware(['auth'])
+    ->middleware(['auth', 'throttle:30,1'])
     ->name('app.chat.store');
 
 Route::get('/app/chat/state', [ChatController::class, 'state'])

@@ -18,11 +18,13 @@ class LlmLog extends Model
         'ok',
         'error_message',
         'feedback',
+        'injection_detected',
     ];
 
     protected $casts = [
         'ok' => 'boolean',
         'feedback' => 'boolean',
+        'injection_detected' => 'boolean',
         'cost_estimate' => 'decimal:6',
     ];
 }

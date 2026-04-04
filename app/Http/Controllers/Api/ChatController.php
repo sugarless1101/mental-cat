@@ -10,6 +10,7 @@ use App\Models\Task;
 use App\Services\ChatContextBuilder;
 use App\Services\MemoryCompactionService;
 use App\Services\MentalCatAiService;
+use App\Services\PromptInjectionDetector;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -39,12 +40,33 @@ class ChatController extends Controller
 
         $isStart = $message === '__start__';
 
+        // __start__ はシステム内部メッセージのためインジェクション検査対象外
+        $injection = $isStart ? ['detected' => false, 'blocked' => false] : PromptInjectionDetector::inspect($message);
+
+        // 高信頼のインジェクション攻撃はAI呼び出し前にブロック（トークン節約 + 安全性）
+        if ($injection['blocked']) {
+            Log::warning('Prompt injection blocked', [
+                'user_id' => $user?->id,
+                'score' => $injection['score'],
+                'patterns' => $injection['patterns'],
+            ]);
+
+            return response()->json([
+                'ok' => true,
+                'reply' => '…にゃ？なんか変なことを聞かれた気がするけど、うまく答えられないにゃ。',
+                'mood_guess' => null,
+                'bgm_key' => null,
+                'tasks' => ['todo' => [], 'done_recent' => []],
+                'messages' => [],
+            ], 200);
+        }
+
         try {
             if (! $user) {
-                return $this->handleGuestRequest($aiMessage, $mood, $isStart);
+                return $this->handleGuestRequest($aiMessage, $mood, $isStart, $injection['detected']);
             }
 
-            $response = DB::transaction(function () use ($user, $message, $mood, $aiMessage, $isStart) {
+            $response = DB::transaction(function () use ($user, $message, $mood, $aiMessage, $isStart, $injection) {
                 ChatMessage::create([
                     'user_id' => $user->id,
                     'role' => 'user',
@@ -58,7 +80,7 @@ class ChatController extends Controller
                 );
 
                 // Task completion is handled by explicit UI confirmation flow.
-                $aiResponse = $this->aiService->makeResponse($aiMessage, $contextText, false, $user->id);
+                $aiResponse = $this->aiService->makeResponse($aiMessage, $contextText, false, $user->id, $injection['detected']);
 
                 if (! $aiResponse['ok']) {
                     Log::warning('AI response failed', ['error' => $aiResponse['error']]);
@@ -179,11 +201,11 @@ class ChatController extends Controller
         ], $this->buildStatePayload($user)), 200);
     }
 
-    private function handleGuestRequest(string $message, ?string $mood, bool $isStart = false): JsonResponse
+    private function handleGuestRequest(string $message, ?string $mood, bool $isStart = false, bool $injectionDetected = false): JsonResponse
     {
         try {
             $simpleContext = $this->appendMoodContext("ユーザーメッセージ: {$message}", $mood);
-            $aiResponse = $this->aiService->makeResponse($message, $simpleContext, false);
+            $aiResponse = $this->aiService->makeResponse($message, $simpleContext, false, null, $injectionDetected);
 
             if (! $aiResponse['ok']) {
                 return response()->json($this->fallbackPayload(), 200);

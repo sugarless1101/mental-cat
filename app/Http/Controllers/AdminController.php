@@ -22,7 +22,8 @@ class AdminController extends Controller
                 SUM(cost_estimate) as total_cost,
                 AVG(latency_ms) as avg_latency,
                 SUM(CASE WHEN ok = 1 THEN 1 ELSE 0 END) * 100.0 / COUNT(*) as success_rate,
-                SUM(CASE WHEN ok = 0 THEN 1 ELSE 0 END) as fallback_count
+                SUM(CASE WHEN ok = 0 THEN 1 ELSE 0 END) as fallback_count,
+                SUM(CASE WHEN injection_detected = 1 THEN 1 ELSE 0 END) as injection_count
             ')
             ->first();
 

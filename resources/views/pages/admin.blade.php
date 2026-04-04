@@ -57,11 +57,16 @@
         {{-- Guardrails --}}
         <section class="mb-8">
             <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-widest mb-4">Guardrails（今月）</h2>
-            <div class="grid grid-cols-2 gap-4 max-w-sm">
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-4 max-w-2xl">
                 <div class="stat-card">
                     <div class="stat-label">フォールバック回数</div>
                     <div class="stat-value text-red-400">{{ number_format($llmStats->fallback_count ?? 0) }}</div>
                     <div class="stat-sub">ok=false の件数</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">インジェクション検知</div>
+                    <div class="stat-value text-yellow-400">{{ number_format($llmStats->injection_count ?? 0) }}</div>
+                    <div class="stat-sub">injection_detected=true</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-label">全期間コスト</div>
