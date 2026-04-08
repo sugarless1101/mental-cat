@@ -122,7 +122,7 @@
 </header>
 
 <main class="relative z-10 flex flex-1 justify-center items-center p-4">
-  <div class="task_list hidden md:block absolute left-8 top-1/2 -translate-y-1/2 w-1/5 bg-white/5 rounded-xl p-4 text-sm text-gray-300 shadow-md border border-white/10">
+  <div class="task_list hidden md:block absolute left-8 top-1/2 -translate-y-1/2 w-1/4 bg-white/5 rounded-xl p-4 text-sm text-gray-300 shadow-md border border-white/10">
     <p class="text-accent mb-3 font-semibold tracking-widest">TASK</p>
     <ul id="task-items" class="space-y-3">
       <li class="flex justify-between items-center">
@@ -143,7 +143,11 @@
     </div>
   </div>
 
-  <div id="cat" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center cat--idle" style="font-size:5rem; opacity:0; z-index:5;" aria-hidden="true">🐱</div>
+  {{-- ラッパーがセンタリング担当（transform で位置決め）。
+       アニメーションは内側の #cat にのみ適用するため干渉しない。 --}}
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" style="z-index:5; pointer-events:none;" aria-hidden="true">
+    <div id="cat" class="text-center cat--idle" style="font-size:5rem; opacity:0; line-height:1;">🐱</div>
+  </div>
 
   <div class="recommend_list hidden md:block absolute right-8 top-1/2 -translate-y-1/2 w-1/4 text-center bg-white/5 rounded-xl p-4 shadow-md border border-white/10">
     <ul class="space-y-4">
