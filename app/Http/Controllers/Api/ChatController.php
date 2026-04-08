@@ -20,15 +20,19 @@ class ChatController extends Controller
 {
     private ChatContextBuilder $contextBuilder;
 
-    private MentalCatAiService $aiService;
+    private ?MentalCatAiService $aiService = null;
 
     private MemoryCompactionService $compactor;
 
     public function __construct()
     {
         $this->contextBuilder = new ChatContextBuilder;
-        $this->aiService = new MentalCatAiService;
         $this->compactor = new MemoryCompactionService;
+    }
+
+    private function aiService(): MentalCatAiService
+    {
+        return $this->aiService ??= new MentalCatAiService;
     }
 
     public function store(ChatStoreRequest $request): JsonResponse
@@ -66,29 +70,31 @@ class ChatController extends Controller
                 return $this->handleGuestRequest($aiMessage, $mood, $isStart, $injection['detected']);
             }
 
-            $response = DB::transaction(function () use ($user, $message, $mood, $aiMessage, $isStart, $injection) {
-                ChatMessage::create([
-                    'user_id' => $user->id,
-                    'role' => 'user',
-                    'content' => $message,
-                    'mood' => $mood,
-                ]);
+            // ユーザーメッセージを先に保存
+            ChatMessage::create([
+                'user_id' => $user->id,
+                'role' => 'user',
+                'content' => $message,
+                'mood' => $mood,
+            ]);
 
-                $contextText = $this->appendMoodContext(
-                    $this->contextBuilder->build($user),
-                    $mood
-                );
+            // AI呼び出しはトランザクション外（外部APIをロック保持中に呼ばない）
+            $contextText = $this->appendMoodContext(
+                $this->contextBuilder->build($user),
+                $mood
+            );
+            $aiResponse = $this->aiService()->makeResponse($aiMessage, $contextText, false, $user->id, $injection['detected']);
 
-                // Task completion is handled by explicit UI confirmation flow.
-                $aiResponse = $this->aiService->makeResponse($aiMessage, $contextText, false, $user->id, $injection['detected']);
+            if (! $aiResponse['ok']) {
+                Log::warning('AI response failed', ['error' => $aiResponse['error']]);
 
-                if (! $aiResponse['ok']) {
-                    Log::warning('AI response failed', ['error' => $aiResponse['error']]);
+                return response()->json($this->fallbackPayload(), 200);
+            }
 
-                    return response()->json($this->fallbackPayload(), 200);
-                }
+            $json = $aiResponse['json'] ?? [];
 
-                $json = $aiResponse['json'] ?? [];
+            // AIレスポンスの書き込みのみをトランザクションで保護
+            $response = DB::transaction(function () use ($user, $mood, $isStart, $json, $aiResponse) {
                 $assistantMsg = ChatMessage::create([
                     'user_id' => $user->id,
                     'role' => 'assistant',
@@ -205,7 +211,7 @@ class ChatController extends Controller
     {
         try {
             $simpleContext = $this->appendMoodContext("ユーザーメッセージ: {$message}", $mood);
-            $aiResponse = $this->aiService->makeResponse($message, $simpleContext, false, null, $injectionDetected);
+            $aiResponse = $this->aiService()->makeResponse($message, $simpleContext, false, null, $injectionDetected);
 
             if (! $aiResponse['ok']) {
                 return response()->json($this->fallbackPayload(), 200);
@@ -349,8 +355,7 @@ class ChatController extends Controller
 
     private function buildStatePayload($user): array
     {
-        $latestTasks = $user->tasks()->latest('created_at')->limit(10)->get();
-        $todo = $latestTasks->where('status', 'todo')->values();
+        $todo = $user->tasks()->where('status', 'todo')->latest('created_at')->limit(10)->get();
         $doneRecent = $user->tasks()->where('status', 'done')->latest('done_at')->limit(10)->get();
 
         $latestMessages = $user->chatMessages()

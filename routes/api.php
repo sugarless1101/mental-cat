@@ -17,6 +17,6 @@ Route::middleware('throttle:30,1')->group(function () {
         ->name('api.chat.state');
 
     Route::post('/feedback', [FeedbackController::class, 'store'])
-        ->middleware('auth:sanctum')
+        ->middleware('auth')
         ->name('api.feedback.store');
 });
