@@ -147,16 +147,32 @@ class ChatController extends Controller
                         'messages' => [],
                     ], 200);
                 } else {
-                    // Regular chat: save AI-suggested tasks without replacing existing ones.
-                    $taskTitlesToAdd = $this->buildTaskTitlesToAdd($json, $mood, false);
-                    foreach ($taskTitlesToAdd as $title) {
-                        Task::create([
-                            'user_id' => $user->id,
-                            'title' => $title,
-                            'status' => 'todo',
-                            'source' => 'ai',
-                            'chat_message_id' => $assistantMsg->id,
-                        ]);
+                    // 通常チャット: todo が3件未満のときだけ差分追加（上限3件厳守）
+                    $existingTitles = $user->tasks()
+                        ->where('status', 'todo')
+                        ->pluck('title')
+                        ->all();
+                    $slots = max(0, 3 - count($existingTitles));
+
+                    if ($slots > 0) {
+                        $taskTitlesToAdd = array_slice(
+                            $this->buildTaskTitlesToAdd($json, $mood, false),
+                            0,
+                            $slots
+                        );
+                        foreach ($taskTitlesToAdd as $title) {
+                            // 同名タスクが既にある場合はスキップ
+                            if (in_array($title, $existingTitles, true)) {
+                                continue;
+                            }
+                            Task::create([
+                                'user_id' => $user->id,
+                                'title' => $title,
+                                'status' => 'todo',
+                                'source' => 'ai',
+                                'chat_message_id' => $assistantMsg->id,
+                            ]);
+                        }
                     }
                 }
 
