@@ -181,6 +181,20 @@ tests/
 
 ---
 
+## Claude Code Hooks による開発フロー自動化
+
+Claude Code（AI コーディングエージェント）を開発に使用し、`.claude/settings.json` に Hooks を設定することでコード品質を自動保証する仕組みを組み込んだ。
+
+| タイミング | トリガー | 処理内容 |
+|-----------|---------|---------|
+| `PreToolUse` (Bash) | `git commit` 実行前 | `pint --test` でフォーマットチェック。違反があればコミットをブロック（exit 2）|
+| `PreToolUse` (Bash) | `git push` 実行前 | `pest --bail` でテスト全実行。1件でも失敗したらプッシュをブロック |
+| `PostToolUse` (Edit) | PHP ファイル編集後 | `php -l` で構文チェック。エラーがあれば即通知 |
+
+加えて `permissions` で破壊的操作（`migrate:fresh` / `rm -rf` 等）を `deny`、`git push` を `ask`（確認要求）として宣言することで、AIが意図せず本番データを壊すリスクを排除している。
+
+---
+
 ## セキュリティ
 
 ### LLM固有の脅威への対策
