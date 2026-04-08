@@ -70,12 +70,13 @@ class ChatController extends Controller
                 return $this->handleGuestRequest($aiMessage, $mood, $isStart, $injection['detected']);
             }
 
-            // ユーザーメッセージを先に保存
+            // ユーザーメッセージを先に保存（__start__ は system メッセージ扱い）
             ChatMessage::create([
                 'user_id' => $user->id,
                 'role' => 'user',
                 'content' => $message,
                 'mood' => $mood,
+                'type' => $isStart ? 'system' : 'chat',
             ]);
 
             // AI呼び出しはトランザクション外（外部APIをロック保持中に呼ばない）
@@ -101,6 +102,7 @@ class ChatController extends Controller
                     'content' => $json['reply'] ?? MentalCatAiService::getFallbackReply(),
                     'mood' => $json['mood_guess'] ?? null,
                     'memory_summary' => $json['memory_summary'] ?? null,
+                    'type' => 'chat',
                 ]);
 
                 // LlmLog に chat_message_id を紐付け（フィードバックUI用）
@@ -121,6 +123,7 @@ class ChatController extends Controller
                             'role' => 'assistant',
                             'content' => $recommendationMessage,
                             'mood' => $mood,
+                            'type' => 'recommendation',
                         ]);
                     }
 
@@ -359,8 +362,7 @@ class ChatController extends Controller
         $doneRecent = $user->tasks()->where('status', 'done')->latest('done_at')->limit(10)->get();
 
         $latestMessages = $user->chatMessages()
-            ->where('content', '!=', '__start__')
-            ->where('content', 'not like', '[記憶%')
+            ->where('type', 'chat')
             ->latest('created_at')
             ->limit(30)
             ->get()

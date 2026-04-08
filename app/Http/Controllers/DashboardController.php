@@ -15,10 +15,9 @@ class DashboardController extends Controller
         $tasks = $user ? $user->tasks()->where('status', 'todo')->orderBy('created_at', 'desc')->limit(5)->get() : collect();
         $doneRecent = $user ? $user->tasks()->where('status', 'done')->latest('done_at')->limit(5)->get() : collect();
         $chatMessages = $user ? $user->chatMessages()
-            ->where('content', '!=', '__start__')
-            ->where('content', 'not like', '[記憶%')
+            ->where('type', 'chat')
             ->latest('created_at')
-            ->limit(10)
+            ->limit(20)
             ->get()
             ->reverse() : collect();
 
